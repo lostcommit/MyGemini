@@ -9,6 +9,7 @@ from config.settings import (
     CALLBACK_CALENDAR_DATE_PREFIX, CALLBACK_CALENDAR_MONTH_PREFIX,
     CALLBACK_REPORT_ERROR, CALLBACK_LANG_PREFIX,
     CALLBACK_SETTINGS_LANG_PREFIX, CALLBACK_SETTINGS_SET_API_KEY,
+    CALLBACK_SETTINGS_BACKEND_MENU, CALLBACK_SETTINGS_BACKEND_PREFIX,
     CALLBACK_SETTINGS_CHOOSE_MODEL_MENU, CALLBACK_SETTINGS_MODEL_PREFIX, CALLBACK_SETTINGS_BACK_TO_MAIN,
     CALLBACK_SETTINGS_PERSONA_MENU, CALLBACK_SETTINGS_PERSONA_PREFIX,
     # Dialogs
@@ -22,6 +23,7 @@ from config.settings import (
 )
 from database import db_manager
 from logger_config import get_logger
+from services.llm_backends import BACKEND_DISPLAY_NAMES
 from . import localization as loc
 
 logger = get_logger('markup_helpers')
@@ -109,7 +111,14 @@ async def create_settings_keyboard(user_id: int) -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup(row_width=1)
     current_style = await db_manager.get_user_bot_style(user_id)
     current_lang = await db_manager.get_user_language(user_id)
+    current_backend = await db_manager.get_user_llm_backend(user_id)
+    backend_name = BACKEND_DISPLAY_NAMES.get(current_backend, current_backend)
 
+    markup.add(types.InlineKeyboardButton(loc.get_text('settings_backend_section', current_lang), callback_data=CALLBACK_IGNORE))
+    markup.add(types.InlineKeyboardButton(
+        loc.get_text('settings_btn_choose_backend', current_lang).format(backend_name=backend_name),
+        callback_data=CALLBACK_SETTINGS_BACKEND_MENU
+    ))
     markup.add(types.InlineKeyboardButton(loc.get_text('settings_api_key_section', current_lang), callback_data=CALLBACK_IGNORE))
     markup.add(types.InlineKeyboardButton(
         loc.get_text('settings_btn_set_api_key', current_lang),
@@ -173,12 +182,32 @@ async def create_persona_selection_keyboard(user_id: int) -> types.InlineKeyboar
     return markup
 
 
+async def create_backend_selection_keyboard(user_id: int) -> types.InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора backend LLM."""
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    lang_code = await db_manager.get_user_language(user_id)
+    current_backend = await db_manager.get_user_llm_backend(user_id)
+
+    for backend_id, display_name in BACKEND_DISPLAY_NAMES.items():
+        text = f"✅ {display_name}" if backend_id == current_backend else display_name
+        markup.add(types.InlineKeyboardButton(
+            text,
+            callback_data=f"{CALLBACK_SETTINGS_BACKEND_PREFIX}{backend_id}"
+        ))
+
+    markup.add(types.InlineKeyboardButton(
+        loc.get_text('btn_back_to_settings', lang_code),
+        callback_data=CALLBACK_SETTINGS_BACK_TO_MAIN
+    ))
+    return markup
+
+
 def create_model_selection_keyboard(models: List[Dict[str, str]], current_model: Optional[str], lang_code: str) -> types.InlineKeyboardMarkup:
-    """Создает клавиатуру для выбора модели Gemini."""
+    """Создает клавиатуру для выбора модели активного backend."""
     markup = types.InlineKeyboardMarkup(row_width=1)
     for model in models:
-        model_id = model['name']
-        display_name = model['display_name']
+        model_id = model.get('name') or model.get('id')
+        display_name = model.get('display_name', model_id)
         text = f"✅ {display_name}" if model_id == current_model else display_name
         markup.add(types.InlineKeyboardButton(
             text,

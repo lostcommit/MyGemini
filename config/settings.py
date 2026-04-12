@@ -14,9 +14,12 @@ ADMIN_USER_ID_STR = os.getenv("ADMIN_USER_ID")
 ADMIN_USER_ID = int(ADMIN_USER_ID_STR) if ADMIN_USER_ID_STR and ADMIN_USER_ID_STR.isdigit() else None
 DONATION_URL = os.getenv("DONATION_URL")
 
-# --- Gemini API Settings ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# --- Gemini / OpenAI API Settings ---
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY=os.getenv("OPENAI_API_KEY")
 DEFAULT_MODEL_ID = os.getenv("DEFAULT_MODEL_ID") or os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+DEFAULT_LLM_BACKEND = os.getenv("DEFAULT_LLM_BACKEND", "gemini")
+OPENAI_DEFAULT_MODEL = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4.1-mini")
 
 # --- Database Settings ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -193,13 +196,15 @@ CALLBACK_REPORT_ERROR = 'report_error'
 # Settings
 CALLBACK_SETTINGS_STYLE_PREFIX = 'settings_style:'
 CALLBACK_SETTINGS_LANG_PREFIX = 'settings_lang:'
-CALLBACK_SETTINGS_SET_API_KEY = 'settings_set_api_key'
+CALLBACK_SETTINGS_SET_API_KEY='settings_set_api_key'
+CALLBACK_SETTINGS_BACKEND_MENU = 'settings_backend_menu'
+CALLBACK_SETTINGS_BACKEND_PREFIX = 'settings_backend:'
 CALLBACK_SETTINGS_CHOOSE_MODEL_MENU = 'settings_choose_model_menu'
 CALLBACK_SETTINGS_MODEL_PREFIX = 'settings_model:'
 CALLBACK_SETTINGS_BACK_TO_MAIN = 'settings_back_to_main'
 CALLBACK_SETTINGS_PERSONA_MENU = 'settings_persona_menu'
 CALLBACK_SETTINGS_PERSONA_PREFIX = 'settings_persona:'
-# Language (for translation)
+
 CALLBACK_LANG_PREFIX = 'lang:'
 # Calendar (for history)
 CALLBACK_CALENDAR_DATE_PREFIX = 'calendar_date:'

@@ -1,7 +1,7 @@
 import datetime
 from typing import Any, Dict, Optional
 
-from config.settings import DEFAULT_MODEL_ID
+from config.settings import DEFAULT_LLM_BACKEND, DEFAULT_MODEL_ID
 from logger_config import get_logger
 from utils import crypto_helpers
 from .core import _execute_query, db_logger, get_new_user_notifier
@@ -15,10 +15,13 @@ async def add_or_update_user(user_id: int, username: Optional[str], first_name: 
         db_logger.info(f"Добавляем нового пользователя {user_id} (@{username}).")
         today_date_str = datetime.date.today().strftime('%Y-%m-%d')
         query_insert_user = """
-            INSERT INTO users (user_id, username, first_name, last_name, first_interaction_date, gemini_model)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO users (
+                user_id, username, first_name, last_name,
+                first_interaction_date, gemini_model, llm_backend
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
-        params = (user_id, username, first_name, last_name, today_date_str, DEFAULT_MODEL_ID)
+        params = (user_id, username, first_name, last_name, today_date_str, DEFAULT_MODEL_ID, DEFAULT_LLM_BACKEND)
         await _execute_query(query_insert_user, params, is_write_operation=True)
         notifier = get_new_user_notifier()
         if notifier:
@@ -102,6 +105,57 @@ async def set_user_gemini_model(user_id: int, model_name: str):
 async def get_user_gemini_model(user_id: int) -> Optional[str]:
     result = await _execute_query("SELECT gemini_model FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
     return result['gemini_model'] if result and result['gemini_model'] else None
+
+
+async def set_user_llm_backend(user_id: int, backend: str):
+    user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить backend LLM: пользователь {user_id} не найден.")
+        return False
+    await _execute_query("UPDATE users SET llm_backend = ? WHERE user_id = ?", (backend, user_id), is_write_operation=True)
+    return True
+
+
+async def get_user_llm_backend(user_id: int) -> str:
+    result = await _execute_query("SELECT llm_backend FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    return result['llm_backend'] if result and result['llm_backend'] else DEFAULT_LLM_BACKEND
+
+
+async def set_user_openai_api_key(user_id: int, api_key: Optional[str]):
+    user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно изменить OpenAI API-ключ: пользователь {user_id} не найден.")
+        return False
+    encrypted_key = crypto_helpers.encrypt_data(api_key) if api_key else None
+    await _execute_query("UPDATE users SET openai_api_key = ? WHERE user_id = ?", (encrypted_key, user_id), is_write_operation=True)
+    db_logger.info(f"OpenAI API-ключ для пользователя {user_id} {'установлен' if api_key else 'сброшен'}.")
+    return True
+
+
+async def get_user_openai_api_key(user_id: int) -> Optional[str]:
+    result = await _execute_query("SELECT openai_api_key FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if result and result['openai_api_key']:
+        encrypted_key = result['openai_api_key']
+        try:
+            return crypto_helpers.decrypt_data(encrypted_key)
+        except Exception as e:
+            db_logger.exception(f"Ошибка при дешифровании OpenAI API-ключа для {user_id}: {e}", extra={'user_id': str(user_id)})
+            return None
+    return None
+
+
+async def set_user_openai_model(user_id: int, model_name: str):
+    user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить модель OpenAI: пользователь {user_id} не найден.")
+        return False
+    await _execute_query("UPDATE users SET openai_model = ? WHERE user_id = ?", (model_name, user_id), is_write_operation=True)
+    return True
+
+
+async def get_user_openai_model(user_id: int) -> Optional[str]:
+    result = await _execute_query("SELECT openai_model FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    return result['openai_model'] if result and result['openai_model'] else None
 
 
 async def set_user_persona(user_id: int, persona_id: str):

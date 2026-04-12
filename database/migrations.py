@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 
+from config.settings import DEFAULT_LLM_BACKEND
 from logger_config import get_logger
 from .core import _get_db_connection
 
@@ -27,7 +28,7 @@ def setup_database_sync():
         if not user_columns:
             db_logger.info("Таблица 'users' не найдена, создаем...")
             cursor.execute(
-                """
+                f"""
                 CREATE TABLE users (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
@@ -38,6 +39,9 @@ def setup_database_sync():
                     api_key TEXT DEFAULT NULL,
                     language_code TEXT DEFAULT 'ru' NOT NULL,
                     gemini_model TEXT DEFAULT NULL,
+                    llm_backend TEXT DEFAULT '{DEFAULT_LLM_BACKEND}' NOT NULL,
+                    openai_api_key TEXT DEFAULT NULL,
+                    openai_model TEXT DEFAULT NULL,
                     active_persona TEXT DEFAULT 'default' NOT NULL,
                     active_dialog_id INTEGER REFERENCES dialogs(dialog_id) ON DELETE SET NULL,
                     is_blocked INTEGER NOT NULL DEFAULT 0
@@ -47,7 +51,8 @@ def setup_database_sync():
         else:
             required_user_columns = {
                 'active_dialog_id', 'active_persona', 'is_blocked',
-                'username', 'first_name', 'last_name'
+                'username', 'first_name', 'last_name',
+                'llm_backend', 'openai_api_key', 'openai_model'
             }
             missing_user_columns = required_user_columns - user_columns
             for col in missing_user_columns:
@@ -56,7 +61,9 @@ def setup_database_sync():
                     cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT 'default' NOT NULL")
                 elif col == 'is_blocked':
                     cursor.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
-                elif col in ['username', 'first_name', 'last_name']:
+                elif col == 'llm_backend':
+                    cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT '{DEFAULT_LLM_BACKEND}' NOT NULL")
+                elif col in ['username', 'first_name', 'last_name', 'openai_api_key', 'openai_model']:
                     cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
                 else:
                     cursor.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER REFERENCES dialogs(dialog_id) ON DELETE SET NULL")

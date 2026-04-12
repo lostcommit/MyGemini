@@ -5,9 +5,9 @@ from typing import Dict
 LOCALIZATION: Dict[str, Dict[str, str]] = {
     'ru': {
         # --- Приветствие и Помощь ---
-        'welcome': "👋 Привет, *{name}*! Я твой личный ассистент на базе Gemini.\n\n"
-           "Для начала работы мне понадобится твой Google AI API ключ. "
-           "Если ты не знаешь, что это и как его получить, воспользуйся новой подробной командой: /apikey_info\n\n"
+        'welcome': "👋 Привет, *{name}*! Я твой личный ассистент с поддержкой Gemini и OpenAI.\n\n"
+           "Для начала работы выбери backend в /settings и установи подходящий API ключ. "
+           "Если не знаешь, какой ключ нужен и как его получить, используй /apikey_info\n\n"
            "✅ После установки ключа через /set_api_key ты сможешь полноценно общаться со мной.\n\n"
            "Используй /help_guide, чтобы увидеть полный список моих возможностей.",
         'cmd_help_text': "🆘 *Краткая справка по командам*\n\n"
@@ -22,6 +22,8 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
                  "🔑 Используй /apikey_info для получения инструкции по **созданию API ключа**.",
         # --- Настройки ---
         'settings_title': "⚙️ *Настройки бота*",
+        'settings_backend_section': "--- Backend LLM ---",
+        'settings_btn_choose_backend': "🧠 Backend: {backend_name}",
         'settings_style_section': "--- Стиль общения бота ---",
         'settings_language_section': "--- Язык интерфейса ---",
         'settings_api_key_section': "--- Управление API ключом ---",
@@ -32,8 +34,11 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'settings_btn_choose_persona': "🎭 Выбрать персону",
         'style_changed_notice': "Стиль общения изменен. Изменения будут применены к следующим ответам.",
         'persona_changed_notice': "✅ Персона изменена на *{persona_name}*. Изменения будут применены к следующим ответам.",
+        'backend_selection_title': "🧠 *Выбор backend*",
+        'backend_selection_desc': "Выберите backend, через который бот будет отвечать.",
+        'backend_changed_notice': "✅ Backend изменён на *{backend_name}*. Изменения будут применены к следующим ответам.",
         # --- Выбор модели ---
-        'model_selection_title': "🧠 *Выбор модели Gemini*",
+        'model_selection_title': "🧠 *Выбор модели*",
         'model_selection_loading': "⏳ Загружаю список доступных моделей...",
         'model_selection_error': "❌ Не удалось загрузить список моделей. Проверьте ваш API ключ или попробуйте позже.",
         'model_changed_notice': "✅ Модель изменена на *{model_name}*. Изменения будут применены к следующим ответам.",
@@ -64,6 +69,7 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         # --- Команды и Состояния ---
         'cmd_reset_success': "✅ Создан новый пустой диалог. Следующий ответ начнется с чистого контекста.",
         'set_api_key_prompt': "Пожалуйста, отправьте ваш Google AI API ключ. Сообщение с ключом будет удалено.",
+        'set_api_key_prompt_backend': "Пожалуйста, отправьте ваш API ключ для backend *{backend_name}*. Сообщение с ключом будет удалено.",
         'history_prompt': "🗓️ Пожалуйста, выберите дату для просмотра истории текущего диалога:",
         'translate_prompt': "Выберите язык, на который нужно перевести текст:",
         'language_selected_notice': "Язык выбран: {lang_name}.",
@@ -71,7 +77,9 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         # --- Обработка API ключа ---
         'api_key_verifying': "Проверяю ключ...",
         'api_key_success': "✅ Ключ успешно установлен и зашифрован! Теперь вы можете общаться со мной.",
+        'api_key_success_backend': "✅ API ключ для backend *{backend_name}* успешно установлен. Теперь вы можете общаться со мной.",
         'api_key_invalid': "❌ Этот ключ недействителен. Пожалуйста, проверьте его и попробуйте снова.",
+        'api_key_invalid_backend': "❌ API ключ для backend *{backend_name}* недействителен. Пожалуйста, проверьте его и попробуйте снова.",
         'api_key_needed_for_chat': "Для общения со мной нужен API ключ. Пожалуйста, установите его с помощью команды /set_api_key.",
         'api_key_needed_for_vision': "Для анализа изображений нужен API ключ. Пожалуйста, установите его с помощью команды /set_api_key.",
         'api_key_needed_for_feature': "Для использования этой функции нужен API ключ. Пожалуйста, установите его через /set_api_key.",
@@ -86,12 +94,15 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'usage_title': "📊 *Статистика расходов токенов*",
         'usage_today_header': "*За сегодня:*",
         'usage_month_header': "*За текущий месяц:*",
+        'usage_backend': "🧠 Backend",
+        'usage_model': "🤖 Модель",
         'usage_prompt_tokens': "📥 Входящие (prompt)",
         'usage_completion_tokens': "📤 Исходящие (completion)",
         'usage_total_tokens': "∑ Всего",
         'usage_estimated_cost': "💰 Примерная стоимость",
         'usage_no_data': "Нет данных для отображения.",
-        'usage_cost_notice': "\n_Стоимость является приблизительной и рассчитывается на основе текущей модели и публичных тарифов Google._",
+        'usage_cost_unavailable': "не настроено",
+        'usage_cost_notice': "\n_Стоимость является приблизительной и рассчитывается только для backend/моделей, у которых в конфигурации есть pricing._",
         # --- Обратная связь ---
         'feedback_prompt': "Пожалуйста, скопируйте текст ошибки и вставьте в сообщение, опишите проблему или ваше предложение. Это сообщение будет отправлено администратору.",
         'feedback_sent': "✅ Спасибо! Ваше сообщение отправлено администратору.",
@@ -114,6 +125,14 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'gemini_error_unavailable': "🛠️ *Сервис временно недоступен.*\nСерверы Google могут быть перегружены. Пожалуйста, повторите попытку через несколько минут.",
         'gemini_error_invalid_argument': "🤔 *Ошибка: Некорректный запрос.*\nВозможно, вы пытаетесь отправить контент, который не поддерживается выбранной моделью (например, видео).",
         'gemini_error_unknown': "🤯 *Произошла неизвестная ошибка при обращении к API.*\nПожалуйста, попробуйте еще раз. Если ошибка повторяется, свяжитесь с администратором.",
+        'openai_voice_not_supported': "🎙️ Для backend OpenAI голосовые сообщения пока не поддерживаются. Переключитесь на Gemini или отправьте текст.",
+        'openai_error_timeout': "⏳ *OpenAI не ответил вовремя.*\nПопробуйте повторить запрос чуть позже.",
+        'openai_error_api_key_invalid': "🚫 *Ошибка OpenAI: неверный API-ключ.*\nПроверьте ключ и установите его заново через /set_api_key.",
+        'openai_error_permission_denied': "🚫 *Ошибка OpenAI: доступ запрещён.*\nПроверьте права доступа и статус вашего аккаунта OpenAI.",
+        'openai_error_quota_exceeded': "⏳ *Ошибка OpenAI: превышена квота или rate limit.*\nПопробуйте позже или проверьте лимиты в вашем аккаунте OpenAI.",
+        'openai_error_unavailable': "🛠️ *Сервис OpenAI временно недоступен.*\nПопробуйте ещё раз через несколько минут.",
+        'openai_error_invalid_argument': "🤔 *Ошибка OpenAI: некорректный запрос.*\nПроверьте формат отправленных данных и попробуйте ещё раз.",
+        'openai_error_unknown': "🤯 *Произошла неизвестная ошибка OpenAI API.*\nПопробуйте ещё раз. Если ошибка повторяется, свяжитесь с администратором.",
         'user_is_blocked': "❌ Вы были заблокированы администратором.",
         'maintenance_mode_on': "🛠️ Бот временно находится на техническом обслуживании. Пожалуйста, попробуйте позже.",
         # --- Кнопки ---
@@ -191,9 +210,9 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
     },
     'en': {
         # --- Welcome and Help ---
-        'welcome': "👋 Hi, *{name}*! I'm your personal assistant powered by Gemini.\n\n"
-           "To get started, I'll need your Google AI API key. "
-           "If you don't know what it is or how to get it, use the new detailed command: /apikey_info\n\n"
+        'welcome': "👋 Hi, *{name}*! I'm your personal assistant with Gemini and OpenAI support.\n\n"
+           "To get started, choose a backend in /settings and set the matching API key. "
+           "If you don't know which key you need or how to get it, use /apikey_info\n\n"
            "✅ After setting the key via /set_api_key, you'll be able to chat with me.\n\n"
            "Use /help_guide to see a full list of my features.",
         'cmd_help_text': "🆘 *Quick Command Reference*\n\n"
@@ -208,6 +227,8 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
                  "🔑 Use /apikey_info for instructions on **creating an API key**.",
         # --- Settings ---
         'settings_title': "⚙️ *Bot Settings*",
+        'settings_backend_section': "--- LLM Backend ---",
+        'settings_btn_choose_backend': "🧠 Backend: {backend_name}",
         'settings_style_section': "--- Bot Communication Style ---",
         'settings_language_section': "--- Interface Language ---",
         'settings_api_key_section': "--- API Key Management ---",
@@ -218,8 +239,11 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'settings_btn_choose_persona': "🎭 Choose Persona",
         'style_changed_notice': "Communication style changed. The new style will apply to future replies.",
         'persona_changed_notice': "✅ Persona changed to *{persona_name}*. The new persona will apply to future replies.",
+        'backend_selection_title': "🧠 *Backend Selection*",
+        'backend_selection_desc': "Choose which backend the bot should use for replies.",
+        'backend_changed_notice': "✅ Backend changed to *{backend_name}*. The new backend will apply to future replies.",
         # --- Model Selection ---
-        'model_selection_title': "🧠 *Gemini Model Selection*",
+        'model_selection_title': "🧠 *Model Selection*",
         'model_selection_loading': "⏳ Loading list of available models...",
         'model_selection_error': "❌ Could not load the model list. Please check your API key or try again later.",
         'model_changed_notice': "✅ Model changed to *{model_name}*. The new model will apply to future replies.",
@@ -250,6 +274,7 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         # --- Commands and States ---
         'cmd_reset_success': "✅ A new empty dialog was created. The next reply will start with a clean context.",
         'set_api_key_prompt': "Please send your Google AI API key. The message with the key will be deleted.",
+        'set_api_key_prompt_backend': "Please send your API key for backend *{backend_name}*. The message with the key will be deleted.",
         'history_prompt': "🗓️ Please select a date to view the history of the current dialog:",
         'translate_prompt': "Select the language to translate the text into:",
         'language_selected_notice': "Language selected: {lang_name}.",
@@ -257,7 +282,9 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         # --- API Key Handling ---
         'api_key_verifying': "Verifying key...",
         'api_key_success': "✅ Key successfully set and encrypted! You can now chat with me.",
+        'api_key_success_backend': "✅ API key for backend *{backend_name}* has been set successfully. You can now chat with me.",
         'api_key_invalid': "❌ This key is invalid. Please check it and try again.",
+        'api_key_invalid_backend': "❌ API key for backend *{backend_name}* is invalid. Please check it and try again.",
         'api_key_needed_for_chat': "To chat with me, an API key is required. Please set it using the /set_api_key command.",
         'api_key_needed_for_vision': "To analyze images, an API key is required. Please set it using the /set_api_key command.",
         'api_key_needed_for_feature': "To use this feature, an API key is required. Please set it via /set_api_key.",
@@ -270,15 +297,18 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'history_date_error': "An error occurred while processing the date. Please try again.",
         # --- Usage Statistics ---
         'usage_title': "📊 *Token Usage Statistics*",
-        'usage_today_header': "*For Today:*",
-        'usage_month_header': "*For Current Month:*",
-        'usage_prompt_tokens': "📥 Input (prompt)",
-        'usage_completion_tokens': "📤 Output (completion)",
-        'usage_total_tokens': "∑ Total",
+        'usage_today_header': "*For today:*",
+        'usage_month_header': "*For the current month:*",
+        'usage_backend': "🧠 Backend",
+        'usage_model': "🤖 Model",
+        'usage_prompt_tokens': "📥 Prompt Tokens",
+        'usage_completion_tokens': "📤 Completion Tokens",
+        'usage_total_tokens': "∑ Total Tokens",
         'usage_estimated_cost': "💰 Estimated Cost",
         'usage_no_data': "No data to display.",
-        'usage_cost_notice': "\n_The cost is an estimate based on the current model and public Google tariffs._",
-        # --- Feedback ---
+        'usage_cost_unavailable': "not configured",
+        'usage_cost_notice': "\n_The cost is approximate and is only calculated for backends/models that have pricing configured in the bot._",
+
         'feedback_prompt': "Please copy the error text and paste it into the message, then describe the problem or your suggestion. This message will be sent to the administrator.",
         'feedback_sent': "✅ Thank you! Your message has been sent to the administrator.",
 
@@ -300,6 +330,14 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'gemini_error_unavailable': "🛠️ *Service Temporarily Unavailable.*\nGoogle's servers might be overloaded. Please try again in a few minutes.",
         'gemini_error_invalid_argument': "🤔 *Error: Invalid Request.*\nYou might be trying to send content not supported by the model (e.g., a video).",
         'gemini_error_unknown': "🤯 *An unknown API error occurred.*\nPlease try again. If the error persists, contact the administrator.",
+        'openai_voice_not_supported': "🎙️ Voice messages are not supported for the OpenAI backend yet. Switch to Gemini or send text instead.",
+        'openai_error_timeout': "⏳ *OpenAI did not respond in time.*\nPlease try again a bit later.",
+        'openai_error_api_key_invalid': "🚫 *OpenAI error: invalid API key.*\nPlease check the key and set it again via /set_api_key.",
+        'openai_error_permission_denied': "🚫 *OpenAI error: permission denied.*\nPlease check your OpenAI account access and permissions.",
+        'openai_error_quota_exceeded': "⏳ *OpenAI error: quota or rate limit exceeded.*\nTry again later or check your OpenAI account limits.",
+        'openai_error_unavailable': "🛠️ *OpenAI service is temporarily unavailable.*\nPlease try again in a few minutes.",
+        'openai_error_invalid_argument': "🤔 *OpenAI error: invalid request.*\nPlease check the request payload and try again.",
+        'openai_error_unknown': "🤯 *An unknown OpenAI API error occurred.*\nPlease try again again. If the problem persists, contact the administrator.",
         'user_is_blocked': "❌ You have been blocked by the administrator.",
         'maintenance_mode_on': "🛠️ The bot is temporarily in maintenance mode. Please try again later.",
         # --- Buttons ---

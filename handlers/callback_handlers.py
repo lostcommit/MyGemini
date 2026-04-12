@@ -8,6 +8,7 @@ from config.settings import (
     CALLBACK_LANG_PREFIX, STATE_WAITING_FOR_TRANSLATE_TEXT,
     CALLBACK_CALENDAR_DATE_PREFIX, CALLBACK_CALENDAR_MONTH_PREFIX, STATE_WAITING_FOR_HISTORY_DATE,
     CALLBACK_SETTINGS_STYLE_PREFIX, CALLBACK_SETTINGS_LANG_PREFIX, CALLBACK_SETTINGS_SET_API_KEY,
+    CALLBACK_SETTINGS_BACKEND_MENU, CALLBACK_SETTINGS_BACKEND_PREFIX,
     CALLBACK_SETTINGS_CHOOSE_MODEL_MENU, CALLBACK_SETTINGS_MODEL_PREFIX,
     CALLBACK_IGNORE, STATE_WAITING_FOR_API_KEY, STATE_WAITING_FOR_FEEDBACK, CALLBACK_REPORT_ERROR,
     CALLBACK_SETTINGS_PERSONA_MENU, CALLBACK_SETTINGS_PERSONA_PREFIX, BOT_PERSONAS,
@@ -17,16 +18,49 @@ from config.settings import (
     STATE_WAITING_FOR_NEW_DIALOG_NAME, STATE_WAITING_FOR_RENAME_DIALOG
 )
 from database import db_manager
-from services import gemini_service
+from services import dialog_service, settings_service
 from services.gemini_service import GeminiAPIError
+from services.openai_client import OpenAIAPIError
 from utils import markup_helpers as mk
 from utils import localization as loc
 from utils import text_helpers as th
 from . import telegram_helpers as tg_helpers
+from .context import add_state_data, delete_state, ensure_user_context, get_state, set_state
 
 from logger_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _exact_callback_handlers():
+    return {
+        CALLBACK_IGNORE: lambda bot, call, lang_code: tg_helpers.answer_callback_query(bot, call),
+        CALLBACK_REPORT_ERROR: handle_report_error,
+        CALLBACK_SETTINGS_SET_API_KEY: handle_set_api_key_from_settings,
+        CALLBACK_SETTINGS_BACKEND_MENU: handle_backend_menu,
+        CALLBACK_SETTINGS_CHOOSE_MODEL_MENU: handle_choose_model_menu,
+        CALLBACK_SETTINGS_PERSONA_MENU: handle_persona_menu,
+        CALLBACK_SETTINGS_BACK_TO_MAIN: handle_back_to_main_settings,
+        CALLBACK_DIALOGS_MENU: handle_dialogs_menu,
+        CALLBACK_DIALOG_CREATE: handle_create_dialog_start,
+    }
+
+
+def _prefix_callback_handlers():
+    return (
+        (CALLBACK_SETTINGS_STYLE_PREFIX, handle_style_setting),
+        (CALLBACK_SETTINGS_LANG_PREFIX, handle_language_setting),
+        (CALLBACK_SETTINGS_BACKEND_PREFIX, handle_backend_selection),
+        (CALLBACK_SETTINGS_MODEL_PREFIX, handle_model_selection),
+        (CALLBACK_SETTINGS_PERSONA_PREFIX, handle_persona_selection),
+        (CALLBACK_DIALOG_SWITCH_PREFIX, handle_switch_dialog),
+        (CALLBACK_DIALOG_RENAME_PREFIX, handle_rename_dialog_start),
+        (CALLBACK_DIALOG_DELETE_PREFIX, handle_delete_dialog_start),
+        (CALLBACK_DIALOG_CONFIRM_DELETE_PREFIX, handle_delete_dialog_confirm),
+        (CALLBACK_LANG_PREFIX, handle_language_selection_for_translation),
+        (CALLBACK_CALENDAR_DATE_PREFIX, handle_calendar_date_selection),
+        (CALLBACK_CALENDAR_MONTH_PREFIX, handle_calendar_month_navigation),
+    )
 
 
 # --- Основной обработчик ---
@@ -43,57 +77,23 @@ async def handle_callback_query(call: types.CallbackQuery, bot: AsyncTeleBot):
         return
 
     # Обновляем данные пользователя при каждом колбэке
-    await db_manager.add_or_update_user(user.id, user.username, user.first_name, user.last_name)
-    lang_code = await db_manager.get_user_language(user_id)
+    user_id, lang_code = await ensure_user_context(call)
 
     # Маршрутизатор колбэков
     try:
-        if data == CALLBACK_IGNORE:
-            await tg_helpers.answer_callback_query(bot, call)
-        # --- Обратная связь ---
-        elif data == CALLBACK_REPORT_ERROR:
-            await handle_report_error(bot, call, lang_code)
-        # --- Настройки ---
-        elif data.startswith(CALLBACK_SETTINGS_STYLE_PREFIX):
-            await handle_style_setting(bot, call, lang_code)
-        elif data.startswith(CALLBACK_SETTINGS_LANG_PREFIX):
-            await handle_language_setting(bot, call)
-        elif data == CALLBACK_SETTINGS_SET_API_KEY:
-            await handle_set_api_key_from_settings(bot, call, lang_code)
-        elif data == CALLBACK_SETTINGS_CHOOSE_MODEL_MENU:
-            await handle_choose_model_menu(bot, call, lang_code)
-        elif data.startswith(CALLBACK_SETTINGS_MODEL_PREFIX):
-            await handle_model_selection(bot, call, lang_code)
-        elif data == CALLBACK_SETTINGS_PERSONA_MENU:
-            await handle_persona_menu(bot, call, lang_code)
-        elif data.startswith(CALLBACK_SETTINGS_PERSONA_PREFIX):
-            await handle_persona_selection(bot, call, lang_code)
-        elif data == CALLBACK_SETTINGS_BACK_TO_MAIN:
-            await handle_back_to_main_settings(bot, call, lang_code)
-        # --- Диалоги ---
-        elif data == CALLBACK_DIALOGS_MENU:
-            await handle_dialogs_menu(bot, call, lang_code)
-        elif data == CALLBACK_DIALOG_CREATE:
-            await handle_create_dialog_start(bot, call, lang_code)
-        elif data.startswith(CALLBACK_DIALOG_SWITCH_PREFIX):
-            await handle_switch_dialog(bot, call, lang_code)
-        elif data.startswith(CALLBACK_DIALOG_RENAME_PREFIX):
-            await handle_rename_dialog_start(bot, call, lang_code)
-        elif data.startswith(CALLBACK_DIALOG_DELETE_PREFIX):
-            await handle_delete_dialog_start(bot, call, lang_code)
-        elif data.startswith(CALLBACK_DIALOG_CONFIRM_DELETE_PREFIX):
-            await handle_delete_dialog_confirm(bot, call, lang_code)
-        # --- Прочее ---
-        elif data.startswith(CALLBACK_LANG_PREFIX):
-            await handle_language_selection_for_translation(bot, call, lang_code)
-        elif data.startswith(CALLBACK_CALENDAR_DATE_PREFIX):
-            await handle_calendar_date_selection(bot, call, lang_code)
-        elif data.startswith(CALLBACK_CALENDAR_MONTH_PREFIX):
-            await handle_calendar_month_navigation(bot, call)
-        else:
-            if not data.startswith('admin_'):
-                await tg_helpers.answer_callback_query(bot, call, text="Unknown action", show_alert=True)
-    except GeminiAPIError as e:
+        exact_handler = _exact_callback_handlers().get(data)
+        if exact_handler is not None:
+            await exact_handler(bot, call, lang_code)
+            return
+
+        for prefix, handler in _prefix_callback_handlers():
+            if data.startswith(prefix):
+                await handler(bot, call, lang_code)
+                return
+
+        if not data.startswith('admin_'):
+            await tg_helpers.answer_callback_query(bot, call, text="Unknown action", show_alert=True)
+    except (GeminiAPIError, OpenAIAPIError) as e:
         user_friendly_error = loc.get_text(e.error_key, lang_code)
         await tg_helpers.answer_callback_query(bot, call, text=user_friendly_error, show_alert=True)
     except Exception as e:
@@ -107,7 +107,7 @@ async def handle_report_error(bot: AsyncTeleBot, call: types.CallbackQuery, lang
     """
     user_id = call.from_user.id
     await tg_helpers.edit_message_reply_markup_safe(bot, call.message.chat.id, call.message.message_id)
-    await bot.set_state(user_id, STATE_WAITING_FOR_FEEDBACK, call.message.chat.id)
+    await set_state(bot, call, STATE_WAITING_FOR_FEEDBACK)
     await bot.send_message(user_id, loc.get_text('feedback_prompt', lang_code))
     await tg_helpers.answer_callback_query(bot, call)
 
@@ -129,7 +129,7 @@ async def handle_dialogs_menu(bot: AsyncTeleBot, call: types.CallbackQuery, lang
 
 async def handle_create_dialog_start(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     """Начинает процесс создания нового диалога."""
-    await bot.set_state(call.from_user.id, STATE_WAITING_FOR_NEW_DIALOG_NAME, call.message.chat.id)
+    await set_state(bot, call, STATE_WAITING_FOR_NEW_DIALOG_NAME)
     await tg_helpers.edit_message_text_safe(
         bot, call.message.chat.id, call.message.message_id,
         text=loc.get_text('dialog_enter_new_name_prompt', lang_code)
@@ -139,7 +139,7 @@ async def handle_create_dialog_start(bot: AsyncTeleBot, call: types.CallbackQuer
 async def handle_switch_dialog(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     """Переключает активный диалог."""
     dialog_id_to_switch = int(call.data[len(CALLBACK_DIALOG_SWITCH_PREFIX):])
-    switched = await db_manager.set_active_dialog(call.from_user.id, dialog_id_to_switch)
+    switched = await dialog_service.switch_dialog(call.from_user.id, dialog_id_to_switch)
     if not switched:
         await tg_helpers.answer_callback_query(bot, call, text="Unknown action", show_alert=True)
         return
@@ -156,8 +156,8 @@ async def handle_rename_dialog_start(bot: AsyncTeleBot, call: types.CallbackQuer
     dialogs = await db_manager.get_user_dialogs(call.from_user.id)
     dialog_name = next((d['name'] for d in dialogs if d['dialog_id'] == dialog_id_to_rename), '???')
 
-    await bot.set_state(call.from_user.id, STATE_WAITING_FOR_RENAME_DIALOG, call.message.chat.id)
-    await bot.add_data(call.from_user.id, call.message.chat.id, dialog_id_to_rename=dialog_id_to_rename)
+    await set_state(bot, call, STATE_WAITING_FOR_RENAME_DIALOG)
+    await add_state_data(bot, call, dialog_id_to_rename=dialog_id_to_rename)
 
     await tg_helpers.edit_message_text_safe(
         bot, call.message.chat.id, call.message.message_id,
@@ -195,15 +195,12 @@ async def handle_delete_dialog_confirm(bot: AsyncTeleBot, call: types.CallbackQu
     user_id = call.from_user.id
     dialog_id_to_delete = int(call.data[len(CALLBACK_DIALOG_CONFIRM_DELETE_PREFIX):])
 
-    deleted_dialog_name = await db_manager.delete_dialog(user_id, dialog_id_to_delete)
+    deleted_dialog_name, created_fallback_dialog = await dialog_service.delete_dialog(user_id, dialog_id_to_delete, lang_code)
     if not deleted_dialog_name:
         await tg_helpers.answer_callback_query(bot, call, text="Ошибка при удалении диалога.", show_alert=True)
         return
 
-    remaining_dialogs = await db_manager.get_user_dialogs(user_id)
-    if not remaining_dialogs:
-        new_dialog_name = "Основной диалог" if lang_code == 'ru' else "General Chat"
-        await db_manager.create_dialog(user_id, new_dialog_name, set_active=True)
+    if created_fallback_dialog:
         await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('dialog_deleted_last_success', lang_code).format(name=deleted_dialog_name))
     else:
          await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('dialog_deleted_success', lang_code).format(name=deleted_dialog_name))
@@ -225,25 +222,51 @@ async def handle_back_to_main_settings(bot: AsyncTeleBot, call: types.CallbackQu
     await tg_helpers.answer_callback_query(bot, call)
 
 async def handle_set_api_key_from_settings(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
-    await bot.set_state(call.from_user.id, STATE_WAITING_FOR_API_KEY, call.message.chat.id)
+    backend_name = await settings_service.get_backend_display_name_for_user(call.from_user.id)
+    await set_state(bot, call, STATE_WAITING_FOR_API_KEY)
     await tg_helpers.answer_callback_query(bot, call)
     await tg_helpers.edit_message_text_safe(
         bot, chat_id=call.message.chat.id, message_id=call.message.message_id,
-        text=loc.get_text('set_api_key_prompt', lang_code), reply_markup=None
+        text=loc.get_text('set_api_key_prompt_backend', lang_code).format(backend_name=backend_name), reply_markup=None
+    )
+
+
+async def handle_backend_menu(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
+    user_id = call.from_user.id
+    text = f"{loc.get_text('backend_selection_title', lang_code)}\n\n{loc.get_text('backend_selection_desc', lang_code)}"
+    keyboard = await mk.create_backend_selection_keyboard(user_id)
+    await tg_helpers.edit_message_text_safe(
+        bot, call.message.chat.id, call.message.message_id,
+        text=text, reply_markup=keyboard
+    )
+    await tg_helpers.answer_callback_query(bot, call)
+
+
+async def handle_backend_selection(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
+    user_id = call.from_user.id
+    backend = call.data[len(CALLBACK_SETTINGS_BACKEND_PREFIX):]
+    changed = await settings_service.set_backend(user_id, backend)
+    if not changed:
+        await tg_helpers.answer_callback_query(bot, call, text="Unknown action", show_alert=True)
+        return
+
+    backend_name = await settings_service.get_backend_display_name_for_user(user_id)
+    await handle_back_to_main_settings(bot, call, lang_code)
+    await tg_helpers.answer_callback_query(
+        bot, call, text=loc.get_text('backend_changed_notice', lang_code).format(backend_name=backend_name)
     )
 
 async def handle_language_setting(bot: AsyncTeleBot, call: types.CallbackQuery):
     user_id = call.from_user.id
     new_lang_code = call.data[len(CALLBACK_SETTINGS_LANG_PREFIX):]
-    await db_manager.set_user_language(user_id, new_lang_code)
+    await settings_service.set_language(user_id, new_lang_code)
     await handle_back_to_main_settings(bot, call, new_lang_code)
     await tg_helpers.answer_callback_query(bot, call, text=f"Language set to {'English' if new_lang_code == 'en' else 'Русский'}")
 
 async def handle_style_setting(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     user_id = call.from_user.id
     style_code = call.data[len(CALLBACK_SETTINGS_STYLE_PREFIX):]
-    if style_code in BOT_STYLES:
-        await db_manager.set_user_bot_style(user_id, style_code)
+    if await settings_service.set_style(user_id, style_code):
         await handle_back_to_main_settings(bot, call, lang_code)
         await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('style_changed_notice', lang_code))
 
@@ -261,12 +284,8 @@ async def handle_persona_menu(bot: AsyncTeleBot, call: types.CallbackQuery, lang
 async def handle_persona_selection(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     user_id = call.from_user.id
     persona_id = call.data[len(CALLBACK_SETTINGS_PERSONA_PREFIX):]
-    if persona_id in BOT_PERSONAS:
-        await db_manager.set_user_persona(user_id, persona_id)
-
-        persona_info = BOT_PERSONAS[persona_id]
-        persona_name = persona_info.get(f"name_{lang_code}", persona_info['name_ru'])
-
+    persona_name = await settings_service.set_persona(user_id, persona_id, lang_code)
+    if persona_name is not None:
         await handle_back_to_main_settings(bot, call, lang_code)
         await tg_helpers.answer_callback_query(
             bot, call, text=loc.get_text('persona_changed_notice', lang_code).format(persona_name=persona_name)
@@ -274,15 +293,14 @@ async def handle_persona_selection(bot: AsyncTeleBot, call: types.CallbackQuery,
 
 async def handle_choose_model_menu(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     user_id = call.from_user.id
-    api_key = await db_manager.get_user_api_key(user_id)
-    if not api_key:
+    models, current_model = await settings_service.get_model_selection_context(user_id)
+    if models is None:
         await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('api_key_needed_for_feature', lang_code), show_alert=True)
         return
     await tg_helpers.edit_message_text_safe(
         bot, call.message.chat.id, call.message.message_id,
         text=loc.get_text('model_selection_loading', lang_code), reply_markup=None
     )
-    models = await gemini_service.get_available_models(api_key)
     if not models:
         await tg_helpers.edit_message_text_safe(
             bot, call.message.chat.id, call.message.message_id,
@@ -290,7 +308,6 @@ async def handle_choose_model_menu(bot: AsyncTeleBot, call: types.CallbackQuery,
         )
         await handle_back_to_main_settings(bot, call, lang_code)
         return
-    current_model = await db_manager.get_user_gemini_model(user_id)
     keyboard = mk.create_model_selection_keyboard(models, current_model, lang_code)
     await tg_helpers.edit_message_text_safe(
         bot, call.message.chat.id, call.message.message_id,
@@ -300,7 +317,7 @@ async def handle_choose_model_menu(bot: AsyncTeleBot, call: types.CallbackQuery,
 async def handle_model_selection(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     user_id = call.from_user.id
     model_name = call.data[len(CALLBACK_SETTINGS_MODEL_PREFIX):]
-    await db_manager.set_user_gemini_model(user_id, model_name)
+    await settings_service.set_model(user_id, model_name)
     await handle_back_to_main_settings(bot, call, lang_code)
     await tg_helpers.answer_callback_query(
         bot, call, text=loc.get_text('model_changed_notice', lang_code).format(model_name=model_name)
@@ -310,8 +327,8 @@ async def handle_language_selection_for_translation(bot: AsyncTeleBot, call: typ
     user_id = call.from_user.id
     target_lang_code = call.data[len(CALLBACK_LANG_PREFIX):]
     lang_name = TRANSLATE_LANGUAGES.get(target_lang_code, target_lang_code)
-    await bot.set_state(user_id, STATE_WAITING_FOR_TRANSLATE_TEXT, call.message.chat.id)
-    await bot.add_data(user_id, call.message.chat.id, target_lang=target_lang_code)
+    await set_state(bot, call, STATE_WAITING_FOR_TRANSLATE_TEXT)
+    await add_state_data(bot, call, target_lang=target_lang_code)
     await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('language_selected_notice', lang_code).format(lang_name=lang_name))
     text = loc.get_text('send_text_to_translate_prompt', lang_code).format(lang_name=lang_name)
     await tg_helpers.edit_message_text_safe(
@@ -321,7 +338,7 @@ async def handle_language_selection_for_translation(bot: AsyncTeleBot, call: typ
 async def handle_calendar_date_selection(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     user_id = call.from_user.id
     selected_date_str = call.data[len(CALLBACK_CALENDAR_DATE_PREFIX):]
-    current_state = await bot.get_state(user_id, call.message.chat.id)
+    current_state = await get_state(bot, call)
     if current_state == STATE_WAITING_FOR_HISTORY_DATE:
         await tg_helpers.answer_callback_query(bot, call)
         await tg_helpers.edit_message_text_safe(
@@ -343,11 +360,11 @@ async def handle_calendar_date_selection(bot: AsyncTeleBot, call: types.Callback
                     await tg_helpers.send_long_message(bot, user_id, history_text)
                 else:
                     await bot.send_message(user_id, loc.get_text('history_no_messages', lang_code))
-            await bot.delete_state(user_id, call.message.chat.id)
+            await delete_state(bot, call)
         except (ValueError, TypeError) as e:
             logger.error(f"Ошибка при обработке даты истории '{selected_date_str}': {e}", extra={'user_id': str(user_id)})
             await bot.send_message(user_id, loc.get_text('history_date_error', lang_code))
-            await bot.delete_state(user_id, call.message.chat.id)
+            await delete_state(bot, call)
 
 async def handle_calendar_month_navigation(bot: AsyncTeleBot, call: types.CallbackQuery):
     try:

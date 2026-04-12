@@ -42,6 +42,21 @@ def load_db_module(configured_env, tmp_path):
         "database.users_repo",
         "database.admin_repo",
         "database.db_manager",
+        "services.prompt_builder",
+        "services.gemini_request_builder",
+        "services.gemini_client",
+        "services.gemini_response_parser",
+        "services.gemini_persistence",
+        "services.gemini_runtime_context",
+        "services.gemini_history_cache",
+        "services.openai_client",
+        "services.openai_runtime_context",
+        "services.openai_request_builder",
+        "services.openai_response_parser",
+        "services.openai_service",
+        "services.llm_backends",
+        "services.llm_service",
+        "utils.markup_helpers",
     ]:
         sys.modules.pop(module_name, None)
 
@@ -73,6 +88,21 @@ def load_gemini_and_db(configured_env, tmp_path):
         "database.users_repo",
         "database.admin_repo",
         "database.db_manager",
+        "services.prompt_builder",
+        "services.gemini_request_builder",
+        "services.gemini_client",
+        "services.gemini_response_parser",
+        "services.gemini_persistence",
+        "services.gemini_runtime_context",
+        "services.gemini_history_cache",
+        "services.openai_client",
+        "services.openai_runtime_context",
+        "services.openai_request_builder",
+        "services.openai_response_parser",
+        "services.openai_service",
+        "services.llm_backends",
+        "services.llm_service",
+        "utils.markup_helpers",
         "services.gemini_service",
     ]:
         sys.modules.pop(module_name, None)
@@ -89,9 +119,11 @@ def load_gemini_and_db(configured_env, tmp_path):
     db_manager = importlib.reload(db_manager)
     db_manager.set_database_name(str(tmp_path / "bot_database.db"))
 
+    gemini_history_cache = importlib.import_module("services.gemini_history_cache")
+    gemini_history_cache = importlib.reload(gemini_history_cache)
+    gemini_history_cache.dialog_chats_cache.clear()
+
     gemini_service = importlib.import_module("services.gemini_service")
     gemini_service = importlib.reload(gemini_service)
-    gemini_service.dialog_chats_cache.clear()
-    gemini_service.db_manager.set_database_name(str(tmp_path / "bot_database.db"))
 
     return gemini_service, db_manager

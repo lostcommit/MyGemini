@@ -28,7 +28,9 @@ from utils import markup_helpers as mk
 from utils import localization as loc
 from . import telegram_helpers as tg_helpers
 from database import db_manager
+from services import settings_service
 from logger_config import get_logger
+from .context import delete_state, retrieve_state_data, set_state
 from .decorators import admin_required
 
 logger = get_logger(__name__)
@@ -200,7 +202,7 @@ async def handle_broadcast_start(call: types.CallbackQuery, bot: AsyncTeleBot):
     """
     user_id = call.from_user.id
     lang_code = await db_manager.get_user_language(user_id)
-    await bot.set_state(user_id, STATE_ADMIN_WAITING_FOR_BROADCAST_MSG, user_id)
+    await set_state(bot, call, STATE_ADMIN_WAITING_FOR_BROADCAST_MSG)
     await tg_helpers.edit_message_text_safe(
         bot,
         chat_id=user_id,
@@ -221,7 +223,7 @@ async def handle_broadcast_cancel(call: types.CallbackQuery, bot: AsyncTeleBot):
     """
     user_id = call.from_user.id
     lang_code = await db_manager.get_user_language(user_id)
-    await bot.delete_state(user_id, user_id)
+    await delete_state(bot, call)
     await tg_helpers.edit_message_text_safe(
         bot,
         chat_id=user_id,
@@ -267,12 +269,12 @@ async def handle_broadcast_confirm(call: types.CallbackQuery, bot: AsyncTeleBot)
     """
     admin_id = call.from_user.id
     lang_code = await db_manager.get_user_language(admin_id)
-    async with bot.retrieve_data(admin_id, admin_id) as data:
+    async with retrieve_state_data(bot, call) as data:
         message_text = data.get('broadcast_message')
     if not message_text:
         await bot.answer_callback_query(call.id, "Ошибка: текст для рассылки не найден.", show_alert=True)
         return
-    await bot.delete_state(admin_id, admin_id)
+    await delete_state(bot, call)
     await tg_helpers.edit_message_text_safe(
         bot,
         chat_id=admin_id,
@@ -335,7 +337,7 @@ async def handle_user_management_menu(call: types.CallbackQuery, bot: AsyncTeleB
     """
     user_id = call.from_user.id
     lang_code = await db_manager.get_user_language(user_id)
-    await bot.set_state(user_id, STATE_ADMIN_WAITING_FOR_USER_ID_TO_MANAGE, user_id)
+    await set_state(bot, call, STATE_ADMIN_WAITING_FOR_USER_ID_TO_MANAGE)
     await tg_helpers.edit_message_text_safe(
         bot,
         chat_id=user_id,
@@ -397,7 +399,7 @@ async def handle_reset_api_key(call: types.CallbackQuery, bot: AsyncTeleBot):
     lang_code = await db_manager.get_user_language(admin_id)
     user_id_to_reset = int(call.data.split(':')[1])
 
-    reset_ok = await db_manager.set_user_api_key(user_id_to_reset, None)
+    reset_ok = await settings_service.reset_user_api_key(user_id_to_reset)
     if not reset_ok:
         await bot.answer_callback_query(call.id, loc.get_text('admin.user_not_found', lang_code).format(user_id=user_id_to_reset), show_alert=True)
         return
@@ -465,7 +467,7 @@ async def handle_reply_to_user_start(call: types.CallbackQuery, bot: AsyncTeleBo
     admin_id = call.from_user.id
     lang_code = await db_manager.get_user_language(admin_id)
 
-    await bot.set_state(admin_id, STATE_ADMIN_WAITING_FOR_USER_ID_TO_REPLY, admin_id)
+    await set_state(bot, call, STATE_ADMIN_WAITING_FOR_USER_ID_TO_REPLY)
     
     await tg_helpers.edit_message_text_safe(
         bot,

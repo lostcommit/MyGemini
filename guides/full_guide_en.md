@@ -1,38 +1,38 @@
 # [START OF SECTION: API_KEY]
 
-### 🔑 How to Get and Set a Google API Key
+### 🔑 How to Choose a Backend and Set an API Key
 
-An API key is your personal pass to the Gemini neural network. The bot needs it to send requests on your behalf. It's secure: the bot encrypts and stores your key, never sharing it with third parties.
+The bot supports two backends: **Google Gemini** and **OpenAI**.
 
-#### ❗ Important Note for Users from Certain Regions
+An API key is your personal access credential for the selected AI service. The bot encrypts and stores your key and does not share it with third parties.
 
-Access to Google AI services may sometimes be restricted depending on your geographical location. If you see an error, an unavailability message, or a blank page when clicking the links below, try the following:
+#### Step by Step
 
-*   **Use a special extension for your browser.** There are extensions that help bypass regional restrictions and provide access to international websites. You can find them in the official extension store for your browser (Chrome, Firefox, etc.).
-*   **Use services that change your network connection.** Such programs route your internet traffic through a server in another country, allowing you to "get around" geographical blocks.
+1. **Open `/settings`** and choose a backend:
+   * `Google Gemini`
+   * `OpenAI`
 
-After activating one of these tools, refresh the page.
+2. **Send the `/set_api_key` command**.
 
-#### Step-by-Step Instructions
+3. **Send the key for the currently selected backend**:
+   * For Gemini: a key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   * For OpenAI: a key from your OpenAI account
 
-1.  **Go to Google AI Studio:** Navigate to the official [Google AI Studio](https://makersuite.google.com/app) website. You will need to sign in with your Google account.
+4. After verification, the bot will save the key and let you choose a model in `/settings`.
 
-2.  **Navigate to API key creation:** In the menu on the left, find the **"Get API key"** option or use the direct link: [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey).
+#### If you use Gemini
 
-3.  **Create the key:** Click the blue button **"Create API key in new project"**.
+1. Go to [Google AI Studio](https://makersuite.google.com/app).
+2. Open **Get API key**.
+3. Create a key and copy it.
+4. Return to the bot and send it via `/set_api_key`.
 
-    ![Step 3 - create key button](https://i.ibb.co/hJm9HHhM/Screenshot-of-Chat-Google-AI-Studio.jpg)
+#### If you use OpenAI
 
-4.  **Copy the key:** After a few seconds, your new key (a long string of characters) will appear in the list. Click the "copy" icon next to it.
-
-    ![Step 4 - generated key](https://i.ibb.co/Kc0cbTmL/Screenshot-of-Get-API-key-Google-AI-Studio.jpg)
-
-5.  **Set the key in the bot:**
-    *   Return to this chat.
-    *   Send the `/set_api_key` command.
-    *   Paste the copied key into the message box and send it.
-
-The bot will verify the key, and if everything is correct, you can start chatting!
+1. Open your OpenAI account dashboard.
+2. Create a new API key.
+3. Copy the key.
+4. Return to the bot and send it via `/set_api_key`.
 
 # [END OF SECTION: API_KEY]
 
@@ -42,29 +42,33 @@ The bot will verify the key, and if everything is correct, you can start chattin
 
 ### 🚀 Bot Features
 
-After setting up the API key, you gain access to the following features:
+After setting an API key, you get access to the following features:
 
 #### 🧠 Main Chat
-Simply type your questions or tasks in the chat. The bot maintains the context of the conversation within the active dialog.
+Just type your questions or tasks. The bot keeps conversation context within the active dialog.
 
 #### 🖼️ Image Analysis
-Send an image to the bot (as a photo, not a file). You can add a caption to the image to specify your request, for example: "What breed is this dog?" or "Create a recipe from these ingredients."
+Send an image as a photo. Image analysis works for both Gemini and OpenAI.
 
 #### 🗂️ Dialog Management (`/dialogs`)
-The bot allows you to have multiple independent conversations at the same time. This is useful for keeping the contexts of different tasks (e.g., "Work" and "Travel") separate.
-*   **Create:** Click "➕ Create New" to start a new conversation from scratch.
-*   **Switch:** Simply click on a dialog's name in the list to make it active. Its context will be loaded immediately.
-*   **Rename:** Each dialog has an "✏️" button that lets you give it a new, more descriptive name.
-*   **Delete:** Click "❌" next to an inactive dialog to delete it along with its entire history. **The active dialog cannot be deleted.**
+The bot supports multiple independent conversations.
+* **Create:** Click “➕ Create New”.
+* **Switch:** Click a dialog name.
+* **Rename:** Use the “✏️” button.
+* **Delete:** Use the “❌” button for an inactive dialog.
 
 #### 📜 Message History (`/history`)
-You can view the entire conversation with the bot in the current active dialog for any selected date.
+You can view the history for the current active dialog on a selected date.
 
 #### 📊 Usage Statistics (`/usage`)
-This command shows how many tokens have been used for generating responses today and for the current month, as well as an estimated cost in USD based on public Google tariffs.
+Shows token usage for today and this month, the active backend, the current model, and estimated cost where pricing is configured.
 
 #### 👤 My Account (`/account`)
-This section gathers all information about your profile: your "title" in the bot, the number of messages sent, current settings, and a brief analysis of the topics you most frequently discuss in the current dialog.
+Shows your profile, active backend, current model, message count, and a short analysis of topics in the current dialog.
+
+#### 🎙️ Voice Messages
+* For Gemini: supported.
+* For OpenAI: not supported yet.
 
 # [END OF SECTION: FEATURES]
 
@@ -74,24 +78,23 @@ This section gathers all information about your profile: your "title" in the bot
 
 ### ⚙️ Settings (`/settings`)
 
-In this menu, you can fine-tune the bot's behavior to suit your needs.
+Use this menu to configure the bot.
 
-#### 🎭 Assistant Persona
-This is the most important setting. The "Persona" defines the role the bot will play in communication. For example, you can turn it into a "Python Expert," a "Financial Advisor," or a "Historian." Choosing a persona dramatically changes the style and depth of the answers. If a persona is selected, the "Communication Style" setting below will be ignored.
+#### 🧠 Backend
+First choose which backend should power replies:
+* `Google Gemini`
+* `OpenAI`
 
-#### 🧠 Gemini Model
-Here you can choose which version of the neural network to use.
-*   `gemini-1.5-flash`: A fast, efficient, and very inexpensive model, great for most tasks. It is used by default.
-*   `gemini-1.5-pro`: A more powerful and "smarter" model, better at complex creative and analytical tasks, but it is slower and more expensive.
+#### 🤖 Model
+After choosing a backend and setting an API key, you can choose a model available for that backend.
+
+#### 🎭 Persona
+A persona defines the assistant role: Python expert, historian, copywriter, etc.
 
 #### 👔 Communication Style
-This setting only works if "Default Assistant" is selected as the "Persona." It allows you to set the general tone of the answers:
-*   **Formal:** A strict and business-like style.
-*   **Informal:** Friendly and simple language.
-*   **Concise:** Answers to the point, without fluff.
-*   **Detailed:** The most comprehensive explanations.
+Applies to the default assistant persona and controls the tone of replies.
 
 #### 🌐 Interface Language
-You can switch the language of all bot buttons and system messages between Russian and English. This does not affect the language in which you communicate with Gemini.
+Switches button and system message language between Russian and English.
 
 # [END OF SECTION: SETTINGS]

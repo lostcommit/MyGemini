@@ -1,4 +1,4 @@
-# MyGemini: Your Personal Gemini-Powered Telegram Assistant
+# MyGemini: Your Personal Gemini and OpenAI Telegram Assistant
 
 ### [Русская версия README](readme.md)
 
@@ -46,7 +46,7 @@
 ## Project Description
 
 
-**MyGemini** is an asynchronous, multilingual Telegram bot that serves as your personal and secure gateway to the capabilities of the Google Gemini API. Unlike public bots, MyGemini uses **your own API key**, giving you full control over quotas and costs.
+**MyGemini** is an asynchronous, multilingual Telegram bot that serves as your personal and secure gateway to the capabilities of the Google Gemini API and OpenAI API. Unlike public bots, MyGemini uses **your own API keys**, giving you full control over quotas, model selection, and costs.
 
 
 The bot is designed with an emphasis on privacy and flexibility. You can conduct **multiple independent dialogues** simultaneously, ensuring that contexts for different tasks do not mix. And thanks to the **"personas"** system, you can transform the bot from a regular assistant into a specialized expert: a programmer, a financial advisor, or a historian.
@@ -62,19 +62,20 @@ The bot is designed with an emphasis on privacy and flexibility. You can conduct
 ### For Users
 
 
-*   **Personal API Key:** Works with your personal Google AI key, ensuring privacy and control over API usage.
+*   **Two LLM backends:** Users can switch between `Google Gemini` and `OpenAI` directly in `/settings`.
+*   **Personal API Keys:** Works with your personal Google AI and OpenAI keys, ensuring privacy and control over API usage.
 *   **Secure Storage:** User API keys are securely encrypted before being saved to the database.
 *   **Multi-Context Dialogues:** Create, switch, rename, and delete independent dialogues to prevent contexts from different topics from overlapping.
 *   **Flexible Personalization:**
     *   **Persona Selection:** Assign a role to the bot (e.g., "Python Expert", "Copywriter"), and it will respond accordingly.
-    *   **Model Selection:** Switch between the fast `gemini-1.5-flash` and powerful `gemini-1.5-pro` depending on the task.
+    *   **Backend and Model Selection:** First choose a backend (`Google Gemini` or `OpenAI`), then select a model available for that backend and your API key.
     *   **Language Change:** The bot's interface supports Russian and English languages.
-*   **Intelligent Communication:** Answers to questions and text generation based on the Google Gemini model, taking into account the selected persona and dialogue history.
-*   **Image Analysis:** Recognition and description of image content with the ability to ask a clarifying question.
-*   **Internet Search:** To provide up-to-date information, the bot can access Google Search. This feature is enabled automatically if the selected model supports it. Currently, search is available for the following models: `gemini-2.0-flash`, `gemini-2.5-flash`, `gemini-2.0-pro-experimental`, and `gemini-2.5-pro`.
+*   **Intelligent Communication:** Answers questions and generates text using the selected backend and model, taking into account the chosen persona and dialogue history.
+*   **Image Analysis:** Recognizes and describes image content. Supported for both Gemini and OpenAI.
+*   **Internet Search:** To provide up-to-date information, the bot can access Google Search. This currently applies to Gemini models and is enabled automatically if the selected Gemini model supports it. Search is currently available for: `gemini-2.0-flash`, `gemini-2.5-flash`, `gemini-2.0-pro-experimental`, and `gemini-2.5-pro`.
 *   **Detailed Help:** Built-in guide (`/help_guide`) helps new users get started quickly, including a step-by-step guide on obtaining an API key.
 *   **Personal Account and Statistics:**
-    *   `/account`: View your "title" in the bot, overall statistics, and a brief analysis of topics in the current dialogue.
+    *   `/account`: View your "title" in the bot, active backend, current model, overall statistics, and a brief analysis of topics in the current dialogue.
     *   `/usage`: Track token usage statistics and approximate cost of requests.
 
 
@@ -96,9 +97,11 @@ The bot includes a powerful admin panel (`/admin`) for full control over its ope
 *   **Maintenance Mode:** Temporarily disable the bot for everyone except the administrator during maintenance work.
 
 
-## Technologies*   **Python 3.10+:** Primary programming language.
+## Technologies
+
+*   **Python 3.10+:** Primary programming language.
 *   **pyTelegramBotAPI (async):** Asynchronous library for interacting with the Telegram Bot API.
-*   **aiohttp:** For making direct, non-blocking HTTP requests to the Gemini API.
+*   **aiohttp:** For making direct, non-blocking HTTP requests to the Gemini API and OpenAI API.
 *   **Cryptography:** For secure encryption of user API keys.
 *   **python-dotenv:** For managing configuration via `.env` files.
 *   **PyYAML:** For logging system configuration.
@@ -160,12 +163,21 @@ The bot includes a powerful admin panel (`/admin`) for full control over its ope
     ENCRYPTION_KEY=..._ваша_сгенерированная_строка_...
 
 
-    # Gemini model the bot will use by default (optional)
+    # Default backend for new users (optional)
+    DEFAULT_LLM_BACKEND=gemini
+
+    # Default Gemini model (optional)
     DEFAULT_MODEL_ID=gemini-2.5-flash
 
     # The old variable name is still supported for backward compatibility
     # GEMINI_MODEL_NAME=gemini-1.5-flash-latest
 
+    # Default OpenAI model (optional)
+    OPENAI_DEFAULT_MODEL=gpt-4.1-mini
+
+    # Global OpenAI API key for the bot instance (optional).
+    # Most users will set their own key via /set_api_key after switching to OpenAI.
+    OPENAI_API_KEY=sk-...
 
     # Donation link (optional, if you want to add a "Support" button)
     DONATION_URL=https://pay.example.com/your_donation_page
@@ -182,15 +194,32 @@ python main.py
 After launching, the bot is ready for use. Find it on Telegram and send the /start command.
 
 ## First Use
-1. On the first launch, the bot will ask you to set up an API key.
-2. Use the `/set_api_key` command.
-3. Send your API key from [Google AI Studio](https://makersuite.google.com/app/apikey) to the bot.
-4. After successful key setup, you will be able to fully use the bot.## Core Commands
+1. On first launch, the bot will ask you to set up an API key.
+2. If needed, open `/settings` and choose a backend: `Google Gemini` or `OpenAI`.
+3. Use the `/set_api_key` command.
+4. Send the API key for the currently selected backend:
+   * Gemini: a key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   * OpenAI: a key from your OpenAI account
+5. After the key is validated, choose a model in `/settings` and start using the bot.
+
+### Using OpenAI
+1. Open `/settings`.
+2. Switch the backend to `OpenAI`.
+3. Use `/set_api_key` or the API key button in settings.
+4. Send your OpenAI API key.
+5. Return to `/settings` → `Choose Model` and select an available OpenAI model.
+
+Notes:
+* Voice messages are not yet supported for the OpenAI backend.
+* Text replies and image analysis are already supported for OpenAI.
+* `/account` shows the active backend and the current model.
+
+## Core Commands
 *   `/start` - Restart the bot.
 *   `/help_guide` - Show the full guide to all bot functions.
 *   `/apikey_info` - Show instructions for obtaining an API key.
 *   `/dialogs` - Open the dialog management menu.
-*   `/settings` - Open the settings menu (persona, model, language selection).
+*   `/settings` - Open the settings menu (backend, model, persona, language selection).
 *   `/usage` - Show token usage statistics.
 *   `/account` - Open personal account.
 *   `/history` - View message history in the current dialog.

@@ -11,19 +11,21 @@ from telebot import types
 import telegramify_markdown
 
 from . import telegram_helpers as tg_helpers
+from .context import add_state_data, delete_state, ensure_user_context, get_state, retrieve_state_data, set_state
 from utils import markup_helpers as mk
 from utils import localization as loc
 from utils import text_helpers as th
 from config.settings import (
    STATE_WAITING_FOR_TRANSLATE_TEXT, STATE_WAITING_FOR_API_KEY,
     STATE_WAITING_FOR_NEW_DIALOG_NAME, STATE_WAITING_FOR_RENAME_DIALOG,
-    STATE_WAITING_FOR_FEEDBACK, DEFAULT_MODEL_ID, BOT_PERSONAS, ADMIN_USER_ID,
+    STATE_WAITING_FOR_FEEDBACK, BOT_PERSONAS, ADMIN_USER_ID,
     STATE_ADMIN_WAITING_FOR_BROADCAST_MSG, STATE_ADMIN_WAITING_FOR_USER_ID_TO_MANAGE,
     STATE_ADMIN_WAITING_FOR_USER_ID_TO_REPLY, STATE_ADMIN_WAITING_FOR_REPLY_MESSAGE
 )
 from database import db_manager
-from services import gemini_service
+from services import dialog_service, llm_service, settings_service
 from services.gemini_service import GeminiAPIError
+from services.openai_client import OpenAIAPIError
 from .decorators import admin_required
 from .admin_handlers import handle_admin_command
 
@@ -66,11 +68,13 @@ async def _create_context_header(user_id: int, lang_code: str) -> str:
         return ""
     dialog_name = context_info.get('dialog_name', '..._')
     persona_id = context_info.get('active_persona', 'default')
-    model_name = context_info.get('gemini_model') or DEFAULT_MODEL_ID
+    backend_name = await settings_service.get_backend_display_name_for_user(user_id)
+    model_name = await settings_service.get_effective_model(user_id) or '...'
     persona_info = BOT_PERSONAS.get(persona_id, BOT_PERSONAS['default'])
     persona_name = persona_info.get(f"name_{lang_code}", persona_info.get('name_ru', '...'))
     header = (
         f"•  **Диалог:** `{dialog_name}`\n"
+        f"•  **Backend:** `{backend_name}`\n"
         f"•  **Персона:** `{persona_name}`\n"
         f"•  **Модель:** `{model_name}`\n"
         f"---"
@@ -88,7 +92,7 @@ async def _handle_state_admin_broadcast(message: types.Message, bot: AsyncTeleBo
     """Логика для состояния STATE_ADMIN_WAITING_FOR_BROADCAST_MSG."""
     user_id = message.from_user.id
     lang_code = await db_manager.get_user_language(user_id)
-    await bot.add_data(user_id, user_id, broadcast_message=message.text)
+    await add_state_data(bot, message, broadcast_message=message.text)
     all_users = await db_manager.get_all_user_ids()
     count = len(all_users)
     confirmation_text = loc.get_text('admin.broadcast_confirm_prompt', lang_code).format(
@@ -108,7 +112,7 @@ async def _handle_state_admin_user_id_manage(message: types.Message, bot: AsyncT
         return
 
     user_id_to_manage = int(message.text)
-    await bot.delete_state(admin_id, admin_id)
+    await delete_state(bot, message)
 
     user_info_text = await tg_helpers.get_user_info_text(user_id_to_manage, lang_code)
 
@@ -142,13 +146,13 @@ async def _handle_state_user_id_for_reply(message: types.Message, bot: AsyncTele
     user_info = await db_manager.get_user_info_for_admin(target_user_id)
     if not user_info:
         await bot.reply_to(message, loc.get_text('admin.user_not_found', lang_code).format(user_id=target_user_id))
-        await bot.delete_state(admin_id, admin_id)
+        await delete_state(bot, message)
         await handle_admin_command(message, bot) # Возвращаем в главное меню админки
         return
 
     # Сохраняем ID в данные состояния и переходим к следующему шагу
-    await bot.add_data(admin_id, admin_id, target_user_id=target_user_id)
-    await bot.set_state(admin_id, STATE_ADMIN_WAITING_FOR_REPLY_MESSAGE, admin_id)
+    await add_state_data(bot, message, target_user_id=target_user_id)
+    await set_state(bot, message, STATE_ADMIN_WAITING_FOR_REPLY_MESSAGE)
 
     # Запрашиваем текст сообщения
     await bot.send_message(admin_id, loc.get_text('admin.reply_prompt_message', lang_code).format(user_id=target_user_id))
@@ -169,7 +173,7 @@ async def _handle_state_message_to_user(message: types.Message, bot: AsyncTeleBo
 
     if not target_user_id:
         logger.error(f"Не найден target_user_id в состоянии для админа {admin_id}")
-        await bot.delete_state(admin_id, admin_id)
+        await delete_state(bot, message)
         await bot.send_message(admin_id, "Произошла внутренняя ошибка, не удалось найти ID получателя.")
         return
 
@@ -186,7 +190,7 @@ async def _handle_state_message_to_user(message: types.Message, bot: AsyncTeleBo
         await bot.send_message(admin_id, loc.get_text('admin.reply_sent_fail', lang_code))
     finally:
         # Завершаем процесс и выходим из состояния
-        await bot.delete_state(admin_id, admin_id)
+        await delete_state(bot, message)
 
 # --- Пользовательские состояния ---
 
@@ -198,23 +202,18 @@ async def _handle_state_api_key(message: types.Message, bot: AsyncTeleBot):
     try:
         await bot.delete_message(message.chat.id, message.message_id)
     except Exception: pass
+    backend_name = await settings_service.get_backend_display_name_for_user(user_id)
     status_msg = await bot.send_message(user_id, loc.get_text('api_key_verifying', lang_code))
-    is_valid = await gemini_service.validate_api_key(api_key)
+    is_valid = await settings_service.validate_and_store_api_key(user_id, api_key)
     try:
         await bot.delete_message(user_id, status_msg.message_id)
     except Exception: pass
     if is_valid:
-        await db_manager.set_user_api_key(user_id, api_key)
-
-        active_dialog_id = await db_manager.get_active_dialog_id(user_id)
-        if active_dialog_id:
-            gemini_service.reset_dialog_chat(active_dialog_id)
-
-        await bot.delete_state(message.from_user.id, message.chat.id)
-        text = loc.get_text('api_key_success', lang_code)
+        await delete_state(bot, message)
+        text = loc.get_text('api_key_success_backend', lang_code).format(backend_name=backend_name)
         await bot.send_message(user_id, text, reply_markup=mk.create_main_keyboard(lang_code, user_id))
     else:
-        text = loc.get_text('api_key_invalid', lang_code)
+        text = loc.get_text('api_key_invalid_backend', lang_code).format(backend_name=backend_name)
         await bot.send_message(user_id, text)
 
 async def _handle_state_translate(message: types.Message, bot: AsyncTeleBot):
@@ -222,7 +221,7 @@ async def _handle_state_translate(message: types.Message, bot: AsyncTeleBot):
     user_id = message.chat.id
     text_to_translate = message.text
     lang_code = await db_manager.get_user_language(user_id)
-    api_key = await db_manager.get_user_api_key(user_id)
+    api_key = await settings_service.get_current_api_key(user_id)
     async with bot.retrieve_data(user_id, message.chat.id) as data:
         target_lang_code = data.get('target_lang')
     if not api_key:
@@ -235,10 +234,11 @@ async def _handle_state_translate(message: types.Message, bot: AsyncTeleBot):
         return
     await tg_helpers.send_typing_action(bot, user_id)
     try:
-        translated_text = await gemini_service.generate_content_simple(api_key, f"Translate to {target_lang_code}: '{text_to_translate}'")
+        backend = await settings_service.get_user_backend(user_id)
+        translated_text = await llm_service.generate_content_simple(backend, api_key, f"Translate to {target_lang_code}: '{text_to_translate}'")
         if translated_text:
             await bot.reply_to(message, translated_text)
-    except GeminiAPIError as e:
+    except (GeminiAPIError, OpenAIAPIError) as e:
         user_friendly_error = loc.get_text(e.error_key, lang_code)
         await bot.reply_to(message, user_friendly_error)
     finally:
@@ -257,8 +257,8 @@ async def _handle_state_new_dialog_name(message: types.Message, bot: AsyncTeleBo
         await bot.reply_to(message, loc.get_text('dialog_name_too_long', lang_code))
         return
 
-    await db_manager.create_dialog(user_id, dialog_name, set_active=True)
-    await bot.delete_state(user_id, message.chat.id)
+    await dialog_service.create_dialog(user_id, dialog_name)
+    await delete_state(bot, message)
     await bot.send_message(user_id, loc.get_text('dialog_created_success', lang_code).format(name=dialog_name))
 
     dialog_keyboard = await mk.create_dialogs_menu_keyboard(user_id)
@@ -285,8 +285,8 @@ async def _handle_state_rename_dialog(message: types.Message, bot: AsyncTeleBot)
         dialog_id_to_rename = data.get('dialog_id_to_rename')
 
     if dialog_id_to_rename:
-        renamed = await db_manager.rename_dialog(user_id, dialog_id_to_rename, new_name)
-        await bot.delete_state(user_id, message.chat.id)
+        renamed = await dialog_service.rename_dialog(user_id, dialog_id_to_rename, new_name)
+        await delete_state(bot, message)
         if renamed:
             await bot.send_message(user_id, loc.get_text('dialog_renamed_success', lang_code).format(new_name=new_name))
 
@@ -337,7 +337,7 @@ async def _handle_no_state_message(message: types.Message, bot: AsyncTeleBot):
     
     try:
         # --- Общая логика для текста и фото ---
-        api_key_exists = await db_manager.get_user_api_key(user_id)
+        api_key_exists = await settings_service.get_current_api_key(user_id)
         if not api_key_exists:
             error_text_key = 'api_key_needed_for_chat' if content_type == 'text' else 'api_key_needed_for_vision'
             await bot.reply_to(message, loc.get_text(error_text_key, lang_code))
@@ -363,7 +363,7 @@ async def _handle_no_state_message(message: types.Message, bot: AsyncTeleBot):
             await bot.reply_to(message, loc.get_text('unsupported_content', lang_code))
             return
             
-        response_text, sources = await gemini_service.generate_response(user_id, prompt)
+        response_text, sources = await llm_service.generate_response(user_id, prompt)
         
         # --- ОТПРАВКА ОТВЕТА ---
         # 1. Отправляем заголовок с контекстом отдельным сообщением
@@ -384,8 +384,8 @@ async def _handle_no_state_message(message: types.Message, bot: AsyncTeleBot):
         # 3. Отправляем основной текст через функцию для длинных сообщений
         await tg_helpers.send_long_message(bot, user_id, final_message_body, disable_web_page_preview=True)
 
-    except GeminiAPIError as e:
-        user_model = await db_manager.get_user_gemini_model(user_id) or DEFAULT_MODEL_ID
+    except (GeminiAPIError, OpenAIAPIError) as e:
+        user_model = await settings_service.get_effective_model(user_id)
         user_friendly_error = loc.get_text(e.error_key, lang_code).format(model_name=user_model)
         error_markup = mk.create_error_report_button()
         await tg_helpers.send_long_message(bot, user_id, user_friendly_error, reply_markup=error_markup)
@@ -398,43 +398,37 @@ async def _handle_no_state_message(message: types.Message, bot: AsyncTeleBot):
 # --- ГЛАВНЫЙ ЕДИНЫЙ ОБРАБОТЧИК И РЕГИСТРАЦИЯ ---
 # ===================================================================================
 
+_STATE_TEXT_HANDLERS = {
+    STATE_ADMIN_WAITING_FOR_BROADCAST_MSG: _handle_state_admin_broadcast,
+    STATE_ADMIN_WAITING_FOR_USER_ID_TO_MANAGE: _handle_state_admin_user_id_manage,
+    STATE_ADMIN_WAITING_FOR_USER_ID_TO_REPLY: _handle_state_user_id_for_reply,
+    STATE_ADMIN_WAITING_FOR_REPLY_MESSAGE: _handle_state_message_to_user,
+    STATE_WAITING_FOR_API_KEY: _handle_state_api_key,
+    STATE_WAITING_FOR_TRANSLATE_TEXT: _handle_state_translate,
+    STATE_WAITING_FOR_NEW_DIALOG_NAME: _handle_state_new_dialog_name,
+    STATE_WAITING_FOR_RENAME_DIALOG: _handle_state_rename_dialog,
+    STATE_WAITING_FOR_FEEDBACK: _handle_state_feedback,
+}
+
+
 async def universal_message_router(message: types.Message, bot: AsyncTeleBot):
     """
     Единый обработчик, который маршрутизирует все текстовые сообщения и фото.
     """
-    user = message.from_user
-    user_id = user.id
+    user_id, lang_code = await ensure_user_context(message)
 
     user_logger.info(f"Получено сообщение ({message.content_type}) от user ID: {user_id}", extra={'user_id': str(user_id)})
-    await db_manager.add_or_update_user(user.id, user.username, user.first_name, user.last_name)
-    
-    lang_code = await db_manager.get_user_language(user_id)
     if not await _check_access(bot, user_id, lang_code):
         return
 
-    current_state = await bot.get_state(user_id, user_id)
+    current_state = await get_state(bot, message)
     logger.debug(f"Router: User {user_id}, State: {current_state}, Content: {message.content_type}")
 
     if message.content_type == 'text':
-        if current_state == STATE_ADMIN_WAITING_FOR_BROADCAST_MSG:
-            await _handle_state_admin_broadcast(message, bot)
-        elif current_state == STATE_ADMIN_WAITING_FOR_USER_ID_TO_MANAGE:
-            await _handle_state_admin_user_id_manage(message, bot)
-        elif current_state == STATE_ADMIN_WAITING_FOR_USER_ID_TO_REPLY:
-            await _handle_state_user_id_for_reply(message, bot)
-        elif current_state == STATE_ADMIN_WAITING_FOR_REPLY_MESSAGE:
-            await _handle_state_message_to_user(message, bot)
-        elif current_state == STATE_WAITING_FOR_API_KEY:
-            await _handle_state_api_key(message, bot)
-        elif current_state == STATE_WAITING_FOR_TRANSLATE_TEXT:
-            await _handle_state_translate(message, bot)
-        elif current_state == STATE_WAITING_FOR_NEW_DIALOG_NAME:
-            await _handle_state_new_dialog_name(message, bot)
-        elif current_state == STATE_WAITING_FOR_RENAME_DIALOG:
-            await _handle_state_rename_dialog(message, bot)
-        elif current_state == STATE_WAITING_FOR_FEEDBACK:
-            await _handle_state_feedback(message, bot)
-        else: # state is None
+        state_handler = _STATE_TEXT_HANDLERS.get(current_state)
+        if state_handler is not None:
+            await state_handler(message, bot)
+        else:  # state is None or unsupported text state
             await _handle_no_state_message(message, bot)
     elif message.content_type in ['photo', 'voice']:
         if current_state is None:

@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from database import db_manager
 from config.settings import BOT_PERSONAS
 from utils.analysis_helpers import extract_frequent_topics
-from services.gemini_service import generate_content_simple
+from services import llm_service, settings_service
 from logger_config import get_logger
 
 logger = get_logger(__name__, user_id='System')
@@ -48,7 +48,8 @@ async def _get_topic_description(user_id: int, api_key: str, active_dialog_id: i
 Briefly (in 1-2 sentences in Russian) describe the main topics the user discusses. Make the description generalized and positive.
 Start the response with 'Чаще всего в этом диалоге вы обсуждаете' or a similar phrase."""
 
-        ai_description = await generate_content_simple(api_key, prompt)
+        backend = await settings_service.get_user_backend(user_id)
+        ai_description = await llm_service.generate_content_simple(backend, api_key, prompt)
         return ai_description.strip() if ai_description else f"Ключевые слова: {topics_str}"
 
     except Exception as e:
@@ -58,9 +59,11 @@ Start the response with 'Чаще всего в этом диалоге вы о�
 async def get_personal_account_info(user_id: int) -> str:
     """Собирает и форматирует информацию для личного кабинета пользователя."""
     user_lang = await db_manager.get_user_language(user_id)
-    user_api_key = await db_manager.get_user_api_key(user_id)
+    user_api_key = await settings_service.get_current_api_key(user_id)
     persona_id = await db_manager.get_user_persona(user_id)
     first_interaction_date_str = await db_manager.get_first_interaction_date(user_id)
+    backend_name = await settings_service.get_backend_display_name_for_user(user_id)
+    current_model = await settings_service.get_effective_model(user_id)
 
     active_dialog_id = await db_manager.get_active_dialog_id(user_id)
     conversation_count = await db_manager.get_total_user_message_count(user_id)
@@ -85,6 +88,8 @@ async def get_personal_account_info(user_id: int) -> str:
 🗓️ **Вы с нами (дней):** {days_active}
 
 --- **Настройки / Settings** ---
+🧠 **Backend / Backend:** {backend_name}
+🤖 **Модель / Model:** {current_model or '—'}
 🎭 **Текущая персона / Persona:** {persona_name}
 🌐 **Язык / Language:** {"Русский" if user_lang == 'ru' else "English"}
 🔑 **API Ключ / API Key:** {api_key_status}
