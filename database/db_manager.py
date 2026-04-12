@@ -247,12 +247,7 @@ async def add_or_update_user(user_id: int, username: Optional[str], first_name: 
     """
     user_data = await _execute_query("SELECT user_id, active_dialog_id FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
 
-    # ВРЕМЕННЫЙ ЛОГ 1
-    db_logger.info(f"[DEBUG] Проверка пользователя {user_id}. Найден в БД: {'Да' if user_data else 'Нет'}")
-
     if not user_data:
-        # ВРЕМЕННЫЙ ЛОГ 2
-        db_logger.info(f"[DEBUG] Пользователь {user_id} определен как новый. Вызываю уведомление.")
         db_logger.info(f"Добавляем нового пользователя {user_id} (@{username}).")
         today_date_str = datetime.date.today().strftime('%Y-%m-%d')
         query_insert_user = """
@@ -292,6 +287,14 @@ async def create_dialog(user_id: int, name: str, set_active: bool = False) -> Op
     return None
 
 
+async def start_fresh_dialog(user_id: int, name: str) -> Optional[int]:
+    """Создает новый пустой диалог и делает его активным для пользователя."""
+    new_dialog_id = await create_dialog(user_id, name, set_active=True)
+    if new_dialog_id:
+        db_logger.info(f"Для пользователя {user_id} начат новый чистый диалог (ID: {new_dialog_id}).")
+    return new_dialog_id
+
+
 async def get_user_dialogs(user_id: int) -> List[Dict[str, Any]]:
     """Получает список всех диалогов пользователя."""
     query = "SELECT d.dialog_id, d.name, u.active_dialog_id FROM dialogs d JOIN users u ON d.user_id = u.user_id WHERE d.user_id = ? ORDER BY d.created_at DESC"
@@ -299,18 +302,33 @@ async def get_user_dialogs(user_id: int) -> List[Dict[str, Any]]:
     return [dict(row) for row in rows] if rows else []
 
 
-async def set_active_dialog(user_id: int, dialog_id: int):
-    """Устанавливает активный диалог для пользователя."""
-    query = "UPDATE users SET active_dialog_id = ? WHERE user_id = ?"
-    await _execute_query(query, (dialog_id, user_id), is_write_operation=True)
-    db_logger.info(f"Для пользователя {user_id} установлен активный диалог ID: {dialog_id}.")
+async def set_active_dialog(user_id: int, dialog_id: int) -> bool:
+    """Устанавливает активный диалог для пользователя, если диалог ему принадлежит."""
+    query = """
+        UPDATE users
+        SET active_dialog_id = ?
+        WHERE user_id = ?
+          AND EXISTS (
+              SELECT 1 FROM dialogs WHERE dialog_id = ? AND user_id = ?
+          )
+    """
+    rows_affected = await _execute_query(query, (dialog_id, user_id, dialog_id, user_id), is_write_operation=True)
+    if rows_affected:
+        db_logger.info(f"Для пользователя {user_id} установлен активный диалог ID: {dialog_id}.")
+        return True
+    db_logger.warning(f"Не удалось установить dialog_id={dialog_id} активным для пользователя {user_id}: диалог не найден или не принадлежит пользователю.")
+    return False
 
 
-async def rename_dialog(dialog_id: int, new_name: str):
-    """Переименовывает диалог."""
-    query = "UPDATE dialogs SET name = ? WHERE dialog_id = ?"
-    await _execute_query(query, (new_name, dialog_id), is_write_operation=True)
-    db_logger.info(f"Диалог ID {dialog_id} переименован в '{new_name}'.")
+async def rename_dialog(user_id: int, dialog_id: int, new_name: str) -> bool:
+    """Переименовывает диалог пользователя."""
+    query = "UPDATE dialogs SET name = ? WHERE dialog_id = ? AND user_id = ?"
+    rows_affected = await _execute_query(query, (new_name, dialog_id, user_id), is_write_operation=True)
+    if rows_affected:
+        db_logger.info(f"Диалог ID {dialog_id} пользователя {user_id} переименован в '{new_name}'.")
+        return True
+    db_logger.warning(f"Не удалось переименовать dialog_id={dialog_id} для пользователя {user_id}: диалог не найден или не принадлежит пользователю.")
+    return False
 
 
 async def delete_dialog(user_id: int, dialog_id_to_delete: int) -> Optional[str]:
@@ -332,11 +350,15 @@ async def delete_dialog(user_id: int, dialog_id_to_delete: int) -> Optional[str]
         new_active_dialog_id = other_dialogs[0]['dialog_id']
         await set_active_dialog(user_id, new_active_dialog_id)
 
-    dialog_info = await _execute_query("SELECT name FROM dialogs WHERE dialog_id = ?", (dialog_id_to_delete,), fetch_one=True)
+    dialog_info = await _execute_query(
+        "SELECT name FROM dialogs WHERE dialog_id = ? AND user_id = ?",
+        (dialog_id_to_delete, user_id),
+        fetch_one=True,
+    )
     if not dialog_info: return None
 
-    delete_query = "DELETE FROM dialogs WHERE dialog_id = ?"
-    rows_affected = await _execute_query(delete_query, (dialog_id_to_delete,), is_write_operation=True)
+    delete_query = "DELETE FROM dialogs WHERE dialog_id = ? AND user_id = ?"
+    rows_affected = await _execute_query(delete_query, (dialog_id_to_delete, user_id), is_write_operation=True)
     if rows_affected:
         db_logger.info(f"Диалог ID {dialog_id_to_delete} удален для пользователя {user_id}.")
         return dialog_info['name']
@@ -404,9 +426,13 @@ async def get_total_user_message_count(user_id: int) -> int:
 
 async def set_user_bot_style(user_id: int, style: str):
     user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить bot_style: пользователь {user_id} не найден.")
+        return False
     await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET bot_style = ? WHERE user_id = ?"
     await _execute_query(query, (style, user_id), is_write_operation=True)
+    return True
 
 
 async def get_user_bot_style(user_id: int) -> str:
@@ -418,11 +444,15 @@ async def get_user_bot_style(user_id: int) -> str:
 async def set_user_api_key(user_id: int, api_key: Optional[str]):
     """Устанавливает или сбрасывает API-ключ пользователя."""
     user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно изменить API-ключ: пользователь {user_id} не найден.")
+        return False
     await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     encrypted_key = crypto_helpers.encrypt_data(api_key) if api_key else None
     query = "UPDATE users SET api_key = ? WHERE user_id = ?"
     await _execute_query(query, (encrypted_key, user_id), is_write_operation=True)
     db_logger.info(f"API-ключ для пользователя {user_id} {'установлен' if api_key else 'сброшен'}.")
+    return True
 
 
 async def get_user_api_key(user_id: int) -> Optional[str]:
@@ -440,9 +470,13 @@ async def get_user_api_key(user_id: int) -> Optional[str]:
 
 async def set_user_language(user_id: int, lang_code: str):
     user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить язык: пользователь {user_id} не найден.")
+        return False
     await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET language_code = ? WHERE user_id = ?"
     await _execute_query(query, (lang_code, user_id), is_write_operation=True)
+    return True
 
 
 async def get_user_language(user_id: int) -> str:
@@ -453,9 +487,13 @@ async def get_user_language(user_id: int) -> str:
 
 async def set_user_gemini_model(user_id: int, model_name: str):
     user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить модель Gemini: пользователь {user_id} не найден.")
+        return False
     await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET gemini_model = ? WHERE user_id = ?"
     await _execute_query(query, (model_name, user_id), is_write_operation=True)
+    return True
 
 
 async def get_user_gemini_model(user_id: int) -> Optional[str]:
@@ -466,9 +504,13 @@ async def get_user_gemini_model(user_id: int) -> Optional[str]:
 
 async def set_user_persona(user_id: int, persona_id: str):
     user_info = await _execute_query("SELECT username, first_name, last_name FROM users WHERE user_id = ?", (user_id,), fetch_one=True)
+    if not user_info:
+        db_logger.warning(f"Невозможно установить персону: пользователь {user_id} не найден.")
+        return False
     await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET active_persona = ? WHERE user_id = ?"
     await _execute_query(query, (persona_id, user_id), is_write_operation=True)
+    return True
 
 
 async def get_user_persona(user_id: int) -> str:

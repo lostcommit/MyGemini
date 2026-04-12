@@ -138,17 +138,11 @@ The bot includes a powerful admin panel (`/admin`) for full control over its ope
     ```
 
 4.  **Generate an encryption key:**
-    Create a temporary file `generate_key.py` and run it to obtain a secret key:
-    ```python
-    # File: generate_key.py
-    from cryptography.fernet import Fernet
-    key = Fernet.generate_key()
-    print(f"ENCRYPTION_KEY={key.decode()}")
-    ```
+    The repository already includes a helper script named `generate_key.py`. Run it to obtain a secret key:
     ```bash
     python generate_key.py
     ```
-    Copy the resulting string (`ENCRYPTION_KEY=...`). Afterwards, the `generate_key.py` file can be deleted.
+    Copy the resulting string (`ENCRYPTION_KEY=...`) into your `.env` file.
 
 5.  **Configure environment variables:**
     Create a `.env` file in the project's root directory and add the following variables to it:
@@ -166,8 +160,11 @@ The bot includes a powerful admin panel (`/admin`) for full control over its ope
     ENCRYPTION_KEY=..._ваша_сгенерированная_строка_...
 
 
-    # Gemini model the bot will use (optional)
-    GEMINI_MODEL_NAME=gemini-1.5-flash-latest
+    # Gemini model the bot will use by default (optional)
+    DEFAULT_MODEL_ID=gemini-2.5-flash
+
+    # The old variable name is still supported for backward compatibility
+    # GEMINI_MODEL_NAME=gemini-1.5-flash-latest
 
 
     # Donation link (optional, if you want to add a "Support" button)
@@ -197,7 +194,7 @@ After launching, the bot is ready for use. Find it on Telegram and send the /sta
 *   `/usage` - Show token usage statistics.
 *   `/account` - Open personal account.
 *   `/history` - View message history in the current dialog.
-*   `/reset` - Reset the context of the current dialog.
+*   `/reset` - Create a new empty dialog and start with a clean context.
 
 ## Directory Structure
 ```

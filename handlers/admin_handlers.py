@@ -397,7 +397,11 @@ async def handle_reset_api_key(call: types.CallbackQuery, bot: AsyncTeleBot):
     lang_code = await db_manager.get_user_language(admin_id)
     user_id_to_reset = int(call.data.split(':')[1])
 
-    await db_manager.set_user_api_key(user_id_to_reset, None)
+    reset_ok = await db_manager.set_user_api_key(user_id_to_reset, None)
+    if not reset_ok:
+        await bot.answer_callback_query(call.id, loc.get_text('admin.user_not_found', lang_code).format(user_id=user_id_to_reset), show_alert=True)
+        return
+
     alert_text = loc.get_text('admin.user_api_key_reset_success', lang_code).format(user_id=user_id_to_reset)
     await bot.answer_callback_query(call.id, alert_text, show_alert=True)
 

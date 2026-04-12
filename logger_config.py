@@ -56,7 +56,9 @@ def setup_logging():
             config = yaml.safe_load(f)
             # Мы больше не используем setLoggerClass, это было ошибкой
             logging.config.dictConfig(config)
-        print(f"Конфигурация логирования успешно загружена из {LOG_CONFIG_FILE}")
+        logging.getLogger(__name__).info(
+            "Конфигурация логирования успешно загружена из %s", LOG_CONFIG_FILE
+        )
     except Exception as e:
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         logging.basicConfig(level=logging.ERROR, format=log_format)

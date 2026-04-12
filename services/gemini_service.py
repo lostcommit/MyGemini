@@ -234,9 +234,8 @@ async def generate_response(user_id: int, prompt: Union[str, List[Union[str, PIL
         else:
             user_message_for_db = text_part # На случай, если в списке только текст
 
-    # Добавляем сообщение пользователя в историю запроса и сохраняем в БД
+    # Добавляем сообщение пользователя в историю запроса.
     request_contents.append({"role": "user", "parts": user_parts})
-    await db_manager.store_message(user_id, active_dialog_id, 'user', user_message_for_db)
 
     url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent"
 
@@ -259,13 +258,16 @@ async def generate_response(user_id: int, prompt: Union[str, List[Union[str, PIL
     try:
         response_json = await _make_gemini_request_async(api_key, url, payload)
 
-        # --- НОВЫЙ БЛОК ЛОГИРОВАНИЯ ---
-        # Логируем полный, необработанный ответ от API для диагностики.
-        gemini_logger.debug(
-            f"Сырой ответ от Gemini API для user_id {user_id}:\n"
-            f"{json.dumps(response_json, indent=2, ensure_ascii=False)}"
+        usage_metadata = response_json.get('usageMetadata', {})
+        gemini_logger.info(
+            "Получен ответ Gemini: user=%s model=%s prompt_tokens=%s completion_tokens=%s total_tokens=%s",
+            user_id,
+            model_name,
+            usage_metadata.get('promptTokenCount', 0),
+            usage_metadata.get('candidatesTokenCount', 0),
+            usage_metadata.get('totalTokenCount', 0),
+            extra={'user_id': str(user_id)},
         )
-        # --- КОНЕЦ БЛОКА ЛОГИРОВАНИЯ ---
 
         if not response_json or "candidates" not in response_json:
             raise GeminiAPIError("Ответ API не содержит 'candidates'.", details=response_json)
@@ -296,8 +298,9 @@ async def generate_response(user_id: int, prompt: Union[str, List[Union[str, PIL
             history.append({"role": "user", "parts": user_parts})
             history.append({"role": "model", "parts": [{"text": response_text}]})
 
+        await db_manager.store_message(user_id, active_dialog_id, 'user', user_message_for_db)
+
         # Сохраняем информацию о токенах
-        usage_metadata = response_json.get('usageMetadata', {})
         prompt_tokens = usage_metadata.get('promptTokenCount', 0)
         completion_tokens = usage_metadata.get('candidatesTokenCount', 0)
         total_tokens = usage_metadata.get('totalTokenCount', 0)
@@ -311,10 +314,6 @@ async def generate_response(user_id: int, prompt: Union[str, List[Union[str, PIL
         return response_text, sources
 
     except GeminiAPIError:
-        # При любой ошибке удаляем последний (неудачный) запрос пользователя из кеша,
-        # если этот кеш вообще использовался (т.е. не для Gemma)
-        if history: 
-            history.pop()
         raise
 
 async def generate_content_simple(api_key: str, prompt: str) -> str:

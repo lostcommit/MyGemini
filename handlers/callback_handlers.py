@@ -139,7 +139,10 @@ async def handle_create_dialog_start(bot: AsyncTeleBot, call: types.CallbackQuer
 async def handle_switch_dialog(bot: AsyncTeleBot, call: types.CallbackQuery, lang_code: str):
     """Переключает активный диалог."""
     dialog_id_to_switch = int(call.data[len(CALLBACK_DIALOG_SWITCH_PREFIX):])
-    await db_manager.set_active_dialog(call.from_user.id, dialog_id_to_switch)
+    switched = await db_manager.set_active_dialog(call.from_user.id, dialog_id_to_switch)
+    if not switched:
+        await tg_helpers.answer_callback_query(bot, call, text="Unknown action", show_alert=True)
+        return
 
     dialogs = await db_manager.get_user_dialogs(call.from_user.id)
     switched_dialog_name = next((d['name'] for d in dialogs if d['dialog_id'] == dialog_id_to_switch), '???')
@@ -241,9 +244,6 @@ async def handle_style_setting(bot: AsyncTeleBot, call: types.CallbackQuery, lan
     style_code = call.data[len(CALLBACK_SETTINGS_STYLE_PREFIX):]
     if style_code in BOT_STYLES:
         await db_manager.set_user_bot_style(user_id, style_code)
-        active_dialog_id = await db_manager.get_active_dialog_id(user_id)
-        if active_dialog_id:
-            gemini_service.reset_dialog_chat(active_dialog_id)
         await handle_back_to_main_settings(bot, call, lang_code)
         await tg_helpers.answer_callback_query(bot, call, text=loc.get_text('style_changed_notice', lang_code))
 
@@ -263,9 +263,6 @@ async def handle_persona_selection(bot: AsyncTeleBot, call: types.CallbackQuery,
     persona_id = call.data[len(CALLBACK_SETTINGS_PERSONA_PREFIX):]
     if persona_id in BOT_PERSONAS:
         await db_manager.set_user_persona(user_id, persona_id)
-        active_dialog_id = await db_manager.get_active_dialog_id(user_id)
-        if active_dialog_id:
-            gemini_service.reset_dialog_chat(active_dialog_id)
 
         persona_info = BOT_PERSONAS[persona_id]
         persona_name = persona_info.get(f"name_{lang_code}", persona_info['name_ru'])
@@ -304,9 +301,6 @@ async def handle_model_selection(bot: AsyncTeleBot, call: types.CallbackQuery, l
     user_id = call.from_user.id
     model_name = call.data[len(CALLBACK_SETTINGS_MODEL_PREFIX):]
     await db_manager.set_user_gemini_model(user_id, model_name)
-    active_dialog_id = await db_manager.get_active_dialog_id(user_id)
-    if active_dialog_id:
-        gemini_service.reset_dialog_chat(active_dialog_id)
     await handle_back_to_main_settings(bot, call, lang_code)
     await tg_helpers.answer_callback_query(
         bot, call, text=loc.get_text('model_changed_notice', lang_code).format(model_name=model_name)

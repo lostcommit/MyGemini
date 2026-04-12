@@ -25,6 +25,9 @@ downloads/
 bot_database.db
 bot_database.db-shm
 bot_database.db-wal
+database/bot_database.db
+database/bot_database.db-shm
+database/bot_database.db-wal
 
 # OS generated files # OS generated files
 .DS_Store

@@ -74,10 +74,11 @@ async def handle_reset(message: types.Message, bot: AsyncTeleBot):
     lang_code = await db_manager.get_user_language(user_id)
 
     await bot.delete_state(user_id, message.chat.id)
-    
-    active_dialog_id = await db_manager.get_active_dialog_id(user_id)
-    if active_dialog_id:
-        gemini_service.reset_dialog_chat(active_dialog_id)
+
+    fresh_dialog_name = "Новый диалог" if lang_code == 'ru' else "Fresh dialog"
+    new_dialog_id = await db_manager.start_fresh_dialog(user_id, fresh_dialog_name)
+    if new_dialog_id:
+        gemini_service.reset_dialog_chat(new_dialog_id)
 
     reset_text = loc.get_text('cmd_reset_success', lang_code)
     main_keyboard = mk.create_main_keyboard(lang_code, user_id)

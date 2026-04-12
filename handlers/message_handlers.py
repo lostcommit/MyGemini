@@ -285,15 +285,18 @@ async def _handle_state_rename_dialog(message: types.Message, bot: AsyncTeleBot)
         dialog_id_to_rename = data.get('dialog_id_to_rename')
 
     if dialog_id_to_rename:
-        await db_manager.rename_dialog(dialog_id_to_rename, new_name)
+        renamed = await db_manager.rename_dialog(user_id, dialog_id_to_rename, new_name)
         await bot.delete_state(user_id, message.chat.id)
-        await bot.send_message(user_id, loc.get_text('dialog_renamed_success', lang_code).format(new_name=new_name))
+        if renamed:
+            await bot.send_message(user_id, loc.get_text('dialog_renamed_success', lang_code).format(new_name=new_name))
 
-        dialog_keyboard = await mk.create_dialogs_menu_keyboard(user_id)
-        await bot.send_message(
-            user_id, f"{loc.get_text('dialogs_menu_title', lang_code)}\n\n{loc.get_text('dialogs_menu_desc', lang_code)}",
-            reply_markup=dialog_keyboard
-        )
+            dialog_keyboard = await mk.create_dialogs_menu_keyboard(user_id)
+            await bot.send_message(
+                user_id, f"{loc.get_text('dialogs_menu_title', lang_code)}\n\n{loc.get_text('dialogs_menu_desc', lang_code)}",
+                reply_markup=dialog_keyboard
+            )
+        else:
+            await bot.send_message(user_id, "Ошибка при переименовании диалога.")
     else:
         logger.error(f"Не найден dialog_id_to_rename в состоянии у {user_id}", extra={'user_id': str(user_id)})
         await bot.delete_state(user_id, message.chat.id)

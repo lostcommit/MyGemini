@@ -67,12 +67,12 @@ handlers:
 # Определяем логгеры
 loggers:
   gemini_api:
-    level: DEBUG
+    level: INFO
     handlers: [console, file_gemini]
     propagate: no
 
   database:
-    level: DEBUG
+    level: INFO
     handlers: [console, file_database]
     propagate: no
 

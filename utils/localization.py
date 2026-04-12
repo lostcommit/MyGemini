@@ -30,13 +30,13 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'settings_btn_choose_model': "🧠 Выбрать модель",
         'settings_persona_section': "--- Роль ассистента (Персона) ---",
         'settings_btn_choose_persona': "🎭 Выбрать персону",
-        'style_changed_notice': "Стиль общения изменен. Контекст диалога сброшен.",
-        'persona_changed_notice': "✅ Персона изменена на *{persona_name}*. Контекст диалога сброшен.",
+        'style_changed_notice': "Стиль общения изменен. Изменения будут применены к следующим ответам.",
+        'persona_changed_notice': "✅ Персона изменена на *{persona_name}*. Изменения будут применены к следующим ответам.",
         # --- Выбор модели ---
         'model_selection_title': "🧠 *Выбор модели Gemini*",
         'model_selection_loading': "⏳ Загружаю список доступных моделей...",
         'model_selection_error': "❌ Не удалось загрузить список моделей. Проверьте ваш API ключ или попробуйте позже.",
-        'model_changed_notice': "✅ Модель изменена на *{model_name}*. Контекст диалога сброшен.",
+        'model_changed_notice': "✅ Модель изменена на *{model_name}*. Изменения будут применены к следующим ответам.",
         'btn_back_to_settings': "⬅️ Назад в настройки",
         # --- Выбор персоны ---
         'persona_selection_title': "🎭 *Выбор персоны ассистента*",
@@ -62,7 +62,7 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'dialog_name_invalid': "Название диалога не может быть пустым.",
         'dialog_error_delete_active': "Нельзя удалить активный диалог. Сначала переключитесь на другой.",
         # --- Команды и Состояния ---
-        'cmd_reset_success': "✅ Контекст текущего диалога сброшен.",
+        'cmd_reset_success': "✅ Создан новый пустой диалог. Следующий ответ начнется с чистого контекста.",
         'set_api_key_prompt': "Пожалуйста, отправьте ваш Google AI API ключ. Сообщение с ключом будет удалено.",
         'history_prompt': "🗓️ Пожалуйста, выберите дату для просмотра истории текущего диалога:",
         'translate_prompt': "Выберите язык, на который нужно перевести текст:",
@@ -216,13 +216,13 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'settings_btn_choose_model': "🧠 Choose Model",
         'settings_persona_section': "--- Assistant's Role (Persona) ---",
         'settings_btn_choose_persona': "🎭 Choose Persona",
-        'style_changed_notice': "Communication style changed. The conversation context has been reset.",
-        'persona_changed_notice': "✅ Persona changed to *{persona_name}*. The conversation context has been reset.",
+        'style_changed_notice': "Communication style changed. The new style will apply to future replies.",
+        'persona_changed_notice': "✅ Persona changed to *{persona_name}*. The new persona will apply to future replies.",
         # --- Model Selection ---
         'model_selection_title': "🧠 *Gemini Model Selection*",
         'model_selection_loading': "⏳ Loading list of available models...",
         'model_selection_error': "❌ Could not load the model list. Please check your API key or try again later.",
-        'model_changed_notice': "✅ Model changed to *{model_name}*. The conversation context has been reset.",
+        'model_changed_notice': "✅ Model changed to *{model_name}*. The new model will apply to future replies.",
         'btn_back_to_settings': "⬅️ Back to Settings",
         # --- Persona Selection ---
         'persona_selection_title': "🎭 *Assistant Persona Selection*",
@@ -248,7 +248,7 @@ LOCALIZATION: Dict[str, Dict[str, str]] = {
         'dialog_name_invalid': "The dialog name cannot be empty.",
         'dialog_error_delete_active': "You cannot delete the active dialog. Switch to another one first.",
         # --- Commands and States ---
-        'cmd_reset_success': "✅ The context of the current dialog has been reset.",
+        'cmd_reset_success': "✅ A new empty dialog was created. The next reply will start with a clean context.",
         'set_api_key_prompt': "Please send your Google AI API key. The message with the key will be deleted.",
         'history_prompt': "🗓️ Please select a date to view the history of the current dialog:",
         'translate_prompt': "Select the language to translate the text into:",
