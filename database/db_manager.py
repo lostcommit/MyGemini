@@ -437,7 +437,6 @@ async def set_user_bot_style(user_id: int, style: str):
     if not user_info:
         db_logger.warning(f"Невозможно установить bot_style: пользователь {user_id} не найден.")
         return False
-    await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET bot_style = ? WHERE user_id = ?"
     await _execute_query(query, (style, user_id), is_write_operation=True)
     return True
@@ -455,7 +454,6 @@ async def set_user_api_key(user_id: int, api_key: Optional[str]):
     if not user_info:
         db_logger.warning(f"Невозможно изменить API-ключ: пользователь {user_id} не найден.")
         return False
-    await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     encrypted_key = crypto_helpers.encrypt_data(api_key) if api_key else None
     query = "UPDATE users SET api_key = ? WHERE user_id = ?"
     await _execute_query(query, (encrypted_key, user_id), is_write_operation=True)
@@ -481,7 +479,6 @@ async def set_user_language(user_id: int, lang_code: str):
     if not user_info:
         db_logger.warning(f"Невозможно установить язык: пользователь {user_id} не найден.")
         return False
-    await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET language_code = ? WHERE user_id = ?"
     await _execute_query(query, (lang_code, user_id), is_write_operation=True)
     return True
@@ -498,7 +495,6 @@ async def set_user_gemini_model(user_id: int, model_name: str):
     if not user_info:
         db_logger.warning(f"Невозможно установить модель Gemini: пользователь {user_id} не найден.")
         return False
-    await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET gemini_model = ? WHERE user_id = ?"
     await _execute_query(query, (model_name, user_id), is_write_operation=True)
     return True
@@ -515,7 +511,6 @@ async def set_user_persona(user_id: int, persona_id: str):
     if not user_info:
         db_logger.warning(f"Невозможно установить персону: пользователь {user_id} не найден.")
         return False
-    await add_or_update_user(user_id, user_info['username'], user_info['first_name'], user_info['last_name'])
     query = "UPDATE users SET active_persona = ? WHERE user_id = ?"
     await _execute_query(query, (persona_id, user_id), is_write_operation=True)
     return True
