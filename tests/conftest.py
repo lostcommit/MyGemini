@@ -34,6 +34,13 @@ def load_db_module(configured_env, tmp_path):
         "config.settings",
         "utils.crypto_helpers",
         "handlers.telegram_helpers",
+        "database.core",
+        "database.migrations",
+        "database.dialogs_repo",
+        "database.conversations_repo",
+        "database.settings_repo",
+        "database.users_repo",
+        "database.admin_repo",
         "database.db_manager",
     ]:
         sys.modules.pop(module_name, None)
@@ -48,7 +55,7 @@ def load_db_module(configured_env, tmp_path):
 
     db_manager = importlib.import_module("database.db_manager")
     db_manager = importlib.reload(db_manager)
-    db_manager.DATABASE_NAME = str(tmp_path / "bot_database.db")
+    db_manager.set_database_name(str(tmp_path / "bot_database.db"))
     return db_manager
 
 
@@ -58,6 +65,13 @@ def load_gemini_and_db(configured_env, tmp_path):
         "config.settings",
         "utils.crypto_helpers",
         "handlers.telegram_helpers",
+        "database.core",
+        "database.migrations",
+        "database.dialogs_repo",
+        "database.conversations_repo",
+        "database.settings_repo",
+        "database.users_repo",
+        "database.admin_repo",
         "database.db_manager",
         "services.gemini_service",
     ]:
@@ -73,11 +87,11 @@ def load_gemini_and_db(configured_env, tmp_path):
 
     db_manager = importlib.import_module("database.db_manager")
     db_manager = importlib.reload(db_manager)
-    db_manager.DATABASE_NAME = str(tmp_path / "bot_database.db")
+    db_manager.set_database_name(str(tmp_path / "bot_database.db"))
 
     gemini_service = importlib.import_module("services.gemini_service")
     gemini_service = importlib.reload(gemini_service)
     gemini_service.dialog_chats_cache.clear()
-    gemini_service.db_manager.DATABASE_NAME = db_manager.DATABASE_NAME
+    gemini_service.db_manager.set_database_name(str(tmp_path / "bot_database.db"))
 
     return gemini_service, db_manager
