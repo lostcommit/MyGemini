@@ -37,6 +37,8 @@ def _get_db_connection() -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout = 5000;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
         return conn
     except sqlite3.Error as e:
         db_logger.exception(f"Ошибка подключения к базе данных {DATABASE_NAME}: {e}")
@@ -55,8 +57,8 @@ def _execute_sync(
     try:
         conn = _get_db_connection()
         if is_write_operation:
-            conn.isolation_level = 'EXCLUSIVE'
-            conn.execute('BEGIN EXCLUSIVE')
+            conn.isolation_level = 'IMMEDIATE'
+            conn.execute('BEGIN IMMEDIATE')
 
         cursor = conn.cursor()
         cursor.execute(query, params)
