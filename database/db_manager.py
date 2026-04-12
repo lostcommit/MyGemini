@@ -7,10 +7,15 @@ from typing import List, Tuple, Optional, Dict, Any
 from logger_config import get_logger
 from config.settings import DATABASE_NAME, DEFAULT_MODEL_ID
 from utils import crypto_helpers
-from handlers import telegram_helpers as tg_helpers
-
 db_logger = get_logger('database', user_id='System')
 db_lock = asyncio.Lock()  # Используем asyncio.Lock
+_new_user_notifier = None
+
+
+def register_new_user_notifier(notifier):
+    """Регистрирует внешний callback для уведомления о новых пользователях."""
+    global _new_user_notifier
+    _new_user_notifier = notifier
 
 def _get_db_connection() -> sqlite3.Connection:
     """Устанавливает соединение с базой данных SQLite."""
@@ -240,7 +245,7 @@ async def setup_database():
     await asyncio.to_thread(setup_database_sync)
 
 
-async def add_or_update_user(user_id: int, username: Optional[str], first_name: Optional[str], last_name: Optional[str]):
+async def add_or_update_user(user_id: int, username: Optional[str], first_name: Optional[str], last_name: Optional[str]) -> bool:
     """
     Добавляет нового пользователя или обновляет его данные (имена).
     Также создает диалог по умолчанию, если это необходимо.
@@ -256,10 +261,12 @@ async def add_or_update_user(user_id: int, username: Optional[str], first_name: 
         """
         params = (user_id, username, first_name, last_name, today_date_str, DEFAULT_MODEL_ID)
         await _execute_query(query_insert_user, params, is_write_operation=True)
-        # Отправка уведомления администратору
-        await tg_helpers.notify_admin_of_new_user(user_id, username, first_name, last_name)
+        # Отправка уведомления администратору через внешний callback
+        if _new_user_notifier:
+            await _new_user_notifier(user_id, username, first_name, last_name)
         # Создаем диалог по умолчанию для нового пользователя
         await create_dialog(user_id, "Основной диалог", set_active=True)
+        return True
     else:
         # Пользователь уже существует, обновляем его имена, так как они могли измениться
         query_update_user = """
@@ -272,6 +279,7 @@ async def add_or_update_user(user_id: int, username: Optional[str], first_name: 
         if not user_data['active_dialog_id']:
             db_logger.warning(f"У существующего пользователя {user_id} нет активного диалога. Создаем новый.")
             await create_dialog(user_id, "Основной диалог", set_active=True)
+    return False
 
 
 async def create_dialog(user_id: int, name: str, set_active: bool = False) -> Optional[int]:

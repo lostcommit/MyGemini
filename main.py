@@ -30,6 +30,7 @@ try:
     state_storage = StateMemoryStorage()
     bot = AsyncTeleBot(settings.BOT_TOKEN, state_storage=state_storage, parse_mode='Markdown')
     telegram_helpers.register_bot_instance(bot)
+    db_manager.register_new_user_notifier(telegram_helpers.notify_admin_of_new_user)
     main_logger.info("Экземпляр AsyncTeleBot создан.", extra={'user_id': 'System'})
 except Exception as e:
     main_logger.exception(f"Критическая ошибка: Не удалось создать экземпляр бота: {e}", extra={'user_id': 'System'})
@@ -79,6 +80,7 @@ async def main():
     main_logger.info("Запуск основной асинхронной функции main().", extra={'user_id': 'System'})
 
     await setup_db()
+    await gemini_service.init_http_session()
 
     polling_task = asyncio.create_task(run_bot_polling(bot))
     await shutdown_event.wait()
@@ -94,6 +96,8 @@ async def main():
         main_logger.info("Поллинг был отменен (как и ожидалось).", extra={'user_id': 'System'})
     except Exception as e:
          main_logger.exception("Ошибка при ожидании завершения задачи поллинга.", extra={'user_id': 'System'})
+
+    await gemini_service.close_http_session()
 
     main_logger.info("Graceful shutdown завершен.", extra={'user_id': 'System'})
 
